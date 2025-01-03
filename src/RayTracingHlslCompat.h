@@ -25,9 +25,6 @@ struct SceneConstantBuffer
 {
     XMMATRIX projectionToWorld;
     XMVECTOR cameraPosition;
-    XMVECTOR lightPosition;
-    XMVECTOR lightAmbientColor;
-    XMVECTOR lightDiffuseColor;
 };
 
 struct CubeConstantBuffer
@@ -39,6 +36,12 @@ struct Vertex
 {
     XMFLOAT3 position;
     XMFLOAT3 normal;
+};
+
+struct PointLight
+{
+    XMFLOAT3 position;
+    XMFLOAT3 color;
 };
 
 #endif // RAYTRACINGHLSLCOMPAT_H

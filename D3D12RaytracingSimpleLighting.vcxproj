@@ -192,10 +192,7 @@
     <ClInclude Include="src\utils\stdafx.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\utils\LoadScene.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">stdafx.h</PrecompiledHeaderFile>
-    </ClCompile>
+    <ClCompile Include="src\utils\LoadScene.cpp" />
     <ClCompile Include="src\minipbrt\minipbrt.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -222,6 +219,7 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include=".gitignore" />
     <None Include="packages.config" />
     <None Include="shaders\shadertoolsconfig.json" />
   </ItemGroup>

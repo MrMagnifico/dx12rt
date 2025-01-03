@@ -103,23 +103,6 @@ void D3D12RaytracingSimpleLighting::InitializeScene()
         UpdateCameraMatrices();
     }
 
-    // Setup lights.
-    {
-        // Initialize the lighting parameters.
-        XMFLOAT4 lightPosition;
-        XMFLOAT4 lightAmbientColor;
-        XMFLOAT4 lightDiffuseColor;
-
-        lightPosition = XMFLOAT4(0.0f, 1.8f, -3.0f, 0.0f);
-        m_sceneCB[frameIndex].lightPosition = XMLoadFloat4(&lightPosition);
-
-        lightAmbientColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-        m_sceneCB[frameIndex].lightAmbientColor = XMLoadFloat4(&lightAmbientColor);
-
-        lightDiffuseColor = XMFLOAT4(0.5f, 0.0f, 0.0f, 1.0f);
-        m_sceneCB[frameIndex].lightDiffuseColor = XMLoadFloat4(&lightDiffuseColor);
-    }
-
     // Apply the initial values to all frames' buffer instances.
     for (auto& sceneCB : m_sceneCB)
     {
@@ -171,8 +154,11 @@ void D3D12RaytracingSimpleLighting::CreateDeviceDependentResources()
     // Create a heap for descriptors.
     CreateDescriptorHeap();
 
+    // Build light sources buffers to be used for lighting
+    BuildLightBuffers();
+
     // Build geometry to be used in the sample.
-    BuildGeometry();
+   BuildGeometry();
 
     // Build raytracing acceleration structures from the generated geometry.
     BuildAccelerationStructures();
@@ -204,15 +190,17 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
     // Global Root Signature
     // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     {
-        CD3DX12_DESCRIPTOR_RANGE ranges[2]; // Perfomance TIP: Order from most frequent to least frequent.
+        CD3DX12_DESCRIPTOR_RANGE ranges[3]; // Perfomance TIP: Order from most frequent to least frequent.
         ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);  // 1 output texture
-        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 1);  // 2 static index and vertex buffers.
+        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);  // 1 point lights buffer
+        ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 2);  // 2 static index and vertex buffers.
 
         CD3DX12_ROOT_PARAMETER rootParameters[GlobalRootSignatureParams::Count];
         rootParameters[GlobalRootSignatureParams::OutputViewSlot].InitAsDescriptorTable(1, &ranges[0]);
         rootParameters[GlobalRootSignatureParams::AccelerationStructureSlot].InitAsShaderResourceView(0);
         rootParameters[GlobalRootSignatureParams::SceneConstantSlot].InitAsConstantBufferView(0);
-        rootParameters[GlobalRootSignatureParams::VertexBuffersSlot].InitAsDescriptorTable(1, &ranges[1]);
+        rootParameters[GlobalRootSignatureParams::PointLightsBufferSlot].InitAsDescriptorTable(1, &ranges[1]);
+        rootParameters[GlobalRootSignatureParams::VertexBuffersSlot].InitAsDescriptorTable(1, &ranges[2]);
         CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
     }
@@ -299,9 +287,9 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingPipelineStateObject()
     
     // Shader config
     // Defines the maximum sizes in bytes for the ray payload and attribute structure.
-    auto shaderConfig = raytracingPipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
-    UINT payloadSize = sizeof(XMFLOAT4);    // float4 pixelColor
-    UINT attributeSize = sizeof(XMFLOAT2);  // float2 barycentrics
+    auto shaderConfig   = raytracingPipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
+    UINT payloadSize    = 20;               // size of RayPayload
+    UINT attributeSize  = sizeof(XMFLOAT2); // float2 barycentrics
     shaderConfig->Config(payloadSize, attributeSize);
 
     // Local root signature and shader association
@@ -318,7 +306,7 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingPipelineStateObject()
     auto pipelineConfig = raytracingPipeline.CreateSubobject<CD3DX12_RAYTRACING_PIPELINE_CONFIG_SUBOBJECT>();
     // PERFOMANCE TIP: Set max recursion depth as low as needed 
     // as drivers may apply optimization strategies for low recursion depths.
-    UINT maxRecursionDepth = 1; // ~ primary rays only. 
+    UINT maxRecursionDepth = 2; // ~ primary and shadow rays only. 
     pipelineConfig->Config(maxRecursionDepth);
 
 #if _DEBUG
@@ -356,10 +344,11 @@ void D3D12RaytracingSimpleLighting::CreateDescriptorHeap()
     auto device = m_deviceResources->GetD3DDevice();
 
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    // Allocate a heap for 3 descriptors:
-    // 2 - vertex and index buffer SRVs
+    // Allocate a heap for 4 descriptors:
     // 1 - raytracing output texture SRV
-    descriptorHeapDesc.NumDescriptors = 3; 
+    // 1 - point light sources SRV
+    // 2 - vertex and index buffer SRVs
+    descriptorHeapDesc.NumDescriptors = 4; 
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     descriptorHeapDesc.NodeMask = 0;
@@ -497,6 +486,27 @@ void D3D12RaytracingSimpleLighting::BuildAccelerationStructures()
     m_deviceResources->WaitForGpu();
 }
 
+void D3D12RaytracingSimpleLighting::BuildLightBuffers()
+{
+    auto device = m_deviceResources->GetD3DDevice();
+
+    // TODO: Acquire these in a programmatic manner instead of just creating dummies
+    std::vector<PointLight> pointLights;
+    PointLight p0 = {
+        .position = { 0.5f, 1.0f, -0.2f },
+        .color = { 1.0f, 0.0f, -0.2f }
+    };
+    PointLight p1 = {
+        .position = { -0.5f, 1.0f, 0.2f },
+        .color = { 0.0f, 0.0f, 1.0f }
+    };
+    pointLights.push_back(p0);
+    pointLights.push_back(p1);
+
+    AllocateUploadBuffer(device, pointLights.data(), pointLights.size() * sizeof(PointLight), &m_pointLightsBuffer.resource);
+    CreateBufferSRV(&m_pointLightsBuffer, static_cast<UINT>(pointLights.size()), sizeof(PointLight));
+}
+
 // Build shader tables.
 // This encapsulates all shader records - shaders and the arguments for their local root signatures.
 void D3D12RaytracingSimpleLighting::BuildShaderTables()
@@ -575,15 +585,6 @@ void D3D12RaytracingSimpleLighting::OnUpdate()
         m_at = XMVector3Transform(m_at, rotate);
         UpdateCameraMatrices();
     }
-
-    // Rotate the second light around Y axis.
-    {
-        float secondsToRotateAround = 8.0f;
-        float angleToRotateBy = -360.0f * (elapsedTime / secondsToRotateAround);
-        XMMATRIX rotate = XMMatrixRotationY(XMConvertToRadians(angleToRotateBy));
-        const XMVECTOR& prevLightPosition = m_sceneCB[prevFrameIndex].lightPosition;
-        m_sceneCB[frameIndex].lightPosition = XMVector3Transform(prevLightPosition, rotate);
-    }
 }
 
 void D3D12RaytracingSimpleLighting::DoRaytracing()
@@ -614,6 +615,7 @@ void D3D12RaytracingSimpleLighting::DoRaytracing()
         descriptorSetCommandList->SetDescriptorHeaps(1, m_descriptorHeap.GetAddressOf());
         // Set index and successive vertex buffer decriptor tables
         commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::VertexBuffersSlot, m_indexBuffer.gpuDescriptorHandle);
+        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::PointLightsBufferSlot, m_pointLightsBuffer.gpuDescriptorHandle);
         commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::OutputViewSlot, m_raytracingOutputResourceUAVGpuDescriptor);
     };
 
@@ -685,6 +687,7 @@ void D3D12RaytracingSimpleLighting::ReleaseDeviceDependentResources()
     m_raytracingOutputResourceUAVDescriptorHeapIndex = UINT_MAX;
     m_indexBuffer.resource.Reset();
     m_vertexBuffer.resource.Reset();
+    m_pointLightsBuffer.resource.Reset();
     m_perFrameConstants.Reset();
     m_rayGenShaderTable.Reset();
     m_missShaderTable.Reset();

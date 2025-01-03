@@ -20,6 +20,7 @@ namespace GlobalRootSignatureParams {
         OutputViewSlot = 0,
         AccelerationStructureSlot,
         SceneConstantSlot,
+        PointLightsBufferSlot,
         VertexBuffersSlot,
         Count 
     };
@@ -81,7 +82,7 @@ private:
     SceneConstantBuffer m_sceneCB[FrameCount];
     CubeConstantBuffer m_cubeCB;
 
-    // Geometry
+    // Non-constant buffers
     struct D3DBuffer
     {
         ComPtr<ID3D12Resource> resource;
@@ -90,6 +91,7 @@ private:
     };
     D3DBuffer m_indexBuffer;
     D3DBuffer m_vertexBuffer;
+    D3DBuffer m_pointLightsBuffer;
 
     // Acceleration structure
     ComPtr<ID3D12Resource> m_bottomLevelAccelerationStructure;
@@ -132,6 +134,7 @@ private:
     void CreateRaytracingPipelineStateObject();
     void CreateDescriptorHeap();
     void CreateRaytracingOutputResource();
+    void BuildLightBuffers();
     void BuildGeometry();
     void BuildAccelerationStructures();
     void BuildShaderTables();
