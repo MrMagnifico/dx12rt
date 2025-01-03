@@ -103,23 +103,6 @@ void D3D12RaytracingSimpleLighting::InitializeScene()
         UpdateCameraMatrices();
     }
 
-    // Setup lights.
-    {
-        // Initialize the lighting parameters.
-        XMFLOAT4 lightPosition;
-        XMFLOAT4 lightAmbientColor;
-        XMFLOAT4 lightDiffuseColor;
-
-        lightPosition = XMFLOAT4(0.0f, 1.8f, -3.0f, 0.0f);
-        m_sceneCB[frameIndex].lightPosition = XMLoadFloat4(&lightPosition);
-
-        lightAmbientColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-        m_sceneCB[frameIndex].lightAmbientColor = XMLoadFloat4(&lightAmbientColor);
-
-        lightDiffuseColor = XMFLOAT4(0.5f, 0.0f, 0.0f, 1.0f);
-        m_sceneCB[frameIndex].lightDiffuseColor = XMLoadFloat4(&lightDiffuseColor);
-    }
-
     // Apply the initial values to all frames' buffer instances.
     for (auto& sceneCB : m_sceneCB)
     {
@@ -595,15 +578,6 @@ void D3D12RaytracingSimpleLighting::OnUpdate()
         m_up = XMVector3Transform(m_up, rotate);
         m_at = XMVector3Transform(m_at, rotate);
         UpdateCameraMatrices();
-    }
-
-    // Rotate the second light around Y axis.
-    {
-        float secondsToRotateAround = 8.0f;
-        float angleToRotateBy = -360.0f * (elapsedTime / secondsToRotateAround);
-        XMMATRIX rotate = XMMatrixRotationY(XMConvertToRadians(angleToRotateBy));
-        const XMVECTOR& prevLightPosition = m_sceneCB[prevFrameIndex].lightPosition;
-        m_sceneCB[frameIndex].lightPosition = XMVector3Transform(prevLightPosition, rotate);
     }
 }
 

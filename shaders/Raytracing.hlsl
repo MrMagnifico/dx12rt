@@ -60,15 +60,19 @@ inline void GenerateCameraRay(uint2 index, out float3 origin, out float3 directi
 }
 
 // Diffuse lighting calculation.
-float4 CalculateDiffuseLighting(float3 hitPosition, float3 normal)
+float3 CalculateDiffuseLighting(float3 hitPosition, float3 normal)
 {
-    float3 pixelToLight = normalize(g_sceneCB.lightPosition.xyz - hitPosition);
-
-    // Diffuse contribution.
-    float fNDotL = max(0.0f, dot(pixelToLight, normal));
-
-    // Use normal as the albedo
-    return g_cubeCB.albedo * g_sceneCB.lightDiffuseColor * fNDotL;
+    uint numLights, lightSize;
+    PointLights.GetDimensions(numLights, lightSize);
+    float3 finalDiffuse = float3(0.0f, 0.0f, 0.0f);
+    for (uint i = 0u; i < numLights; i++)
+    {
+        PointLight pointLight   = PointLights[i];
+        float3 pixelToLight     = normalize(pointLight.position - hitPosition);
+        float fNDotL            = max(0.0f, dot(pixelToLight, normal));
+        finalDiffuse            += g_cubeCB.albedo.rgb * pointLight.color * fNDotL;
+    }
+    return finalDiffuse;
 }
 
 [shader("raygeneration")]
@@ -118,14 +122,12 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
     };
 
     // Compute the triangle's normal.
-    // This is redundant and done for illustration purposes 
-    // as all the per-vertex normals are the same and match triangle's normal in this sample. 
     float3 triangleNormal = HitAttribute(vertexNormals, attr);
 
-    float4 diffuseColor = CalculateDiffuseLighting(hitPosition, triangleNormal);
-    float4 color = g_sceneCB.lightAmbientColor + diffuseColor;
-
-    payload.color = color;
+    // Compute the final pixel color
+    float3 diffuseColor = CalculateDiffuseLighting(hitPosition, triangleNormal);
+    float4 pixelColor   = float4(0.1f, 0.1f, 0.1f, 0.0f) + float4(diffuseColor, 1.0f); // Add a constant ambient term
+    payload.color       = pixelColor;
 }
 
 [shader("miss")]

@@ -25,9 +25,6 @@ struct SceneConstantBuffer
 {
     XMMATRIX projectionToWorld;
     XMVECTOR cameraPosition;
-    XMVECTOR lightPosition;
-    XMVECTOR lightAmbientColor;
-    XMVECTOR lightDiffuseColor;
 };
 
 struct CubeConstantBuffer
