@@ -158,7 +158,7 @@ void D3D12RaytracingSimpleLighting::CreateDeviceDependentResources()
     BuildLightBuffers();
 
     // Build geometry to be used in the sample.
-    BuildGeometry();
+   BuildGeometry();
 
     // Build raytracing acceleration structures from the generated geometry.
     BuildAccelerationStructures();
@@ -287,9 +287,9 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingPipelineStateObject()
     
     // Shader config
     // Defines the maximum sizes in bytes for the ray payload and attribute structure.
-    auto shaderConfig = raytracingPipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
-    UINT payloadSize = sizeof(XMFLOAT4);    // float4 pixelColor
-    UINT attributeSize = sizeof(XMFLOAT2);  // float2 barycentrics
+    auto shaderConfig   = raytracingPipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
+    UINT payloadSize    = 20;               // size of RayPayload
+    UINT attributeSize  = sizeof(XMFLOAT2); // float2 barycentrics
     shaderConfig->Config(payloadSize, attributeSize);
 
     // Local root signature and shader association
@@ -306,7 +306,7 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingPipelineStateObject()
     auto pipelineConfig = raytracingPipeline.CreateSubobject<CD3DX12_RAYTRACING_PIPELINE_CONFIG_SUBOBJECT>();
     // PERFOMANCE TIP: Set max recursion depth as low as needed 
     // as drivers may apply optimization strategies for low recursion depths.
-    UINT maxRecursionDepth = 1; // ~ primary rays only. 
+    UINT maxRecursionDepth = 2; // ~ primary and shadow rays only. 
     pipelineConfig->Config(maxRecursionDepth);
 
 #if _DEBUG
@@ -344,10 +344,11 @@ void D3D12RaytracingSimpleLighting::CreateDescriptorHeap()
     auto device = m_deviceResources->GetD3DDevice();
 
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    // Allocate a heap for 3 descriptors:
-    // 2 - vertex and index buffer SRVs
+    // Allocate a heap for 4 descriptors:
     // 1 - raytracing output texture SRV
-    descriptorHeapDesc.NumDescriptors = 3; 
+    // 1 - point light sources SRV
+    // 2 - vertex and index buffer SRVs
+    descriptorHeapDesc.NumDescriptors = 4; 
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     descriptorHeapDesc.NodeMask = 0;
@@ -492,10 +493,15 @@ void D3D12RaytracingSimpleLighting::BuildLightBuffers()
     // TODO: Acquire these in a programmatic manner instead of just creating dummies
     std::vector<PointLight> pointLights;
     PointLight p0 = {
-        .position = { 0.0f, 1.0f, 0.0f },
-        .color = { 1.0f, 1.0f, 1.0f }
+        .position = { 0.5f, 1.0f, -0.2f },
+        .color = { 1.0f, 0.0f, -0.2f }
+    };
+    PointLight p1 = {
+        .position = { -0.5f, 1.0f, 0.2f },
+        .color = { 0.0f, 0.0f, 1.0f }
     };
     pointLights.push_back(p0);
+    pointLights.push_back(p1);
 
     AllocateUploadBuffer(device, pointLights.data(), pointLights.size() * sizeof(PointLight), &m_pointLightsBuffer.resource);
     CreateBufferSRV(&m_pointLightsBuffer, static_cast<UINT>(pointLights.size()), sizeof(PointLight));
