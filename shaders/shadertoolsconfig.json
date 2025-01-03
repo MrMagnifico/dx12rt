@@ -1,0 +1,9 @@
+{
+  "root":  true,
+  "hlsl.preprocessorDefinitions": {
+    "HLSL": 1
+  },
+  "hlsl.additionalIncludeDirectories": [
+    "C:\\Users\\willy\\Documents\\Random Bullshit\\dx12-rt\\src"
+  ]
+}

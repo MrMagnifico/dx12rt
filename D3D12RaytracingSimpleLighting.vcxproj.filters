@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <FxCompile Include="shaders\Raytracing.hlsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\utils\LoadScene.cpp" />
+    <ClCompile Include="src\minipbrt\minipbrt.cpp" />
+    <ClCompile Include="src\DeviceResources.cpp" />
+    <ClCompile Include="src\Win32Application.cpp" />
+    <ClCompile Include="src\D3D12RaytracingSimpleLighting.cpp" />
+    <ClCompile Include="src\DXSample.cpp" />
+    <ClCompile Include="src\Main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\utils\LoadScene.h" />
+    <ClInclude Include="src\minipbrt\minipbrt.h" />
+    <ClInclude Include="src\DeviceResources.h" />
+    <ClInclude Include="src\DirectXRaytracingHelper.h" />
+    <ClInclude Include="src\HlslCompat.h" />
+    <ClInclude Include="src\RaytracingHlslCompat.h" />
+    <ClInclude Include="src\utils\StepTimer.h" />
+    <ClInclude Include="src\tinyobjloader\tiny_obj_loader.h" />
+    <ClInclude Include="src\Win32Application.h" />
+    <ClInclude Include="src\D3D12RaytracingSimpleLighting.h" />
+    <ClInclude Include="src\utils\d3dx12.h" />
+    <ClInclude Include="src\DXSample.h" />
+    <ClInclude Include="src\utils\DXSampleHelper.h" />
+    <ClInclude Include="src\utils\stdafx.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <None Include="shaders\shadertoolsconfig.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="minipbrt">
+      <UniqueIdentifier>{e8d6a69e-4cf1-46f1-abd9-9930e4630be5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tinyobjloader">
+      <UniqueIdentifier>{af4c4d5f-4c24-4095-a422-14831c080b92}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
