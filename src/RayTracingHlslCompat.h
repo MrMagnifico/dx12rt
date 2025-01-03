@@ -41,4 +41,10 @@ struct Vertex
     XMFLOAT3 normal;
 };
 
+struct PointLight
+{
+    XMFLOAT3 position;
+    XMFLOAT3 color;
+};
+
 #endif // RAYTRACINGHLSLCOMPAT_H

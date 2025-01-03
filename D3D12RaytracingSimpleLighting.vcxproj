@@ -222,6 +222,7 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include=".gitignore" />
     <None Include="packages.config" />
     <None Include="shaders\shadertoolsconfig.json" />
   </ItemGroup>

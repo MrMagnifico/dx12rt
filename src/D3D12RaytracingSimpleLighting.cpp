@@ -171,6 +171,9 @@ void D3D12RaytracingSimpleLighting::CreateDeviceDependentResources()
     // Create a heap for descriptors.
     CreateDescriptorHeap();
 
+    // Build light sources buffers to be used for lighting
+    BuildLightBuffers();
+
     // Build geometry to be used in the sample.
     BuildGeometry();
 
@@ -204,15 +207,17 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
     // Global Root Signature
     // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     {
-        CD3DX12_DESCRIPTOR_RANGE ranges[2]; // Perfomance TIP: Order from most frequent to least frequent.
+        CD3DX12_DESCRIPTOR_RANGE ranges[3]; // Perfomance TIP: Order from most frequent to least frequent.
         ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);  // 1 output texture
-        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 1);  // 2 static index and vertex buffers.
+        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);  // 1 point lights buffer
+        ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 2);  // 2 static index and vertex buffers.
 
         CD3DX12_ROOT_PARAMETER rootParameters[GlobalRootSignatureParams::Count];
         rootParameters[GlobalRootSignatureParams::OutputViewSlot].InitAsDescriptorTable(1, &ranges[0]);
         rootParameters[GlobalRootSignatureParams::AccelerationStructureSlot].InitAsShaderResourceView(0);
         rootParameters[GlobalRootSignatureParams::SceneConstantSlot].InitAsConstantBufferView(0);
-        rootParameters[GlobalRootSignatureParams::VertexBuffersSlot].InitAsDescriptorTable(1, &ranges[1]);
+        rootParameters[GlobalRootSignatureParams::PointLightsBufferSlot].InitAsDescriptorTable(1, &ranges[1]);
+        rootParameters[GlobalRootSignatureParams::VertexBuffersSlot].InitAsDescriptorTable(1, &ranges[2]);
         CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
     }
@@ -497,6 +502,22 @@ void D3D12RaytracingSimpleLighting::BuildAccelerationStructures()
     m_deviceResources->WaitForGpu();
 }
 
+void D3D12RaytracingSimpleLighting::BuildLightBuffers()
+{
+    auto device = m_deviceResources->GetD3DDevice();
+
+    // TODO: Acquire these in a programmatic manner instead of just creating dummies
+    std::vector<PointLight> pointLights;
+    PointLight p0 = {
+        .position = { 0.0f, 1.0f, 0.0f },
+        .color = { 1.0f, 1.0f, 1.0f }
+    };
+    pointLights.push_back(p0);
+
+    AllocateUploadBuffer(device, pointLights.data(), pointLights.size() * sizeof(PointLight), &m_pointLightsBuffer.resource);
+    CreateBufferSRV(&m_pointLightsBuffer, static_cast<UINT>(pointLights.size()), sizeof(PointLight));
+}
+
 // Build shader tables.
 // This encapsulates all shader records - shaders and the arguments for their local root signatures.
 void D3D12RaytracingSimpleLighting::BuildShaderTables()
@@ -614,6 +635,7 @@ void D3D12RaytracingSimpleLighting::DoRaytracing()
         descriptorSetCommandList->SetDescriptorHeaps(1, m_descriptorHeap.GetAddressOf());
         // Set index and successive vertex buffer decriptor tables
         commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::VertexBuffersSlot, m_indexBuffer.gpuDescriptorHandle);
+        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::PointLightsBufferSlot, m_pointLightsBuffer.gpuDescriptorHandle);
         commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::OutputViewSlot, m_raytracingOutputResourceUAVGpuDescriptor);
     };
 
@@ -685,6 +707,7 @@ void D3D12RaytracingSimpleLighting::ReleaseDeviceDependentResources()
     m_raytracingOutputResourceUAVDescriptorHeapIndex = UINT_MAX;
     m_indexBuffer.resource.Reset();
     m_vertexBuffer.resource.Reset();
+    m_pointLightsBuffer.resource.Reset();
     m_perFrameConstants.Reset();
     m_rayGenShaderTable.Reset();
     m_missShaderTable.Reset();
