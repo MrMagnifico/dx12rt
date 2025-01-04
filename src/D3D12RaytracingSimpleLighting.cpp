@@ -81,8 +81,10 @@ void D3D12RaytracingSimpleLighting::InitializeScene()
     auto frameIndex = m_deviceResources->GetCurrentFrameIndex();
 
     // Setup materials.
+    // TODO: Get these from a GUI
     {
-        m_cubeCB.albedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        m_materialCB.defaultAlbedo              = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        m_materialCB.defaultMetalAndRoughness   = XMFLOAT4(0.1f, 0.8f, 0.0f, 0.0f);
     }
 
     // Setup camera.
@@ -209,7 +211,7 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
     // This is a root signature that enables a shader to have unique arguments that come from shader tables.
     {
         CD3DX12_ROOT_PARAMETER rootParameters[LocalRootSignatureParams::Count];
-        rootParameters[LocalRootSignatureParams::CubeConstantSlot].InitAsConstants(SizeOfInUint32(m_cubeCB), 1);
+        rootParameters[LocalRootSignatureParams::CubeConstantSlot].InitAsConstants(SizeOfInUint32(m_materialCB), 1);
         CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
         SerializeAndCreateRaytracingRootSignature(localRootSignatureDesc, &m_raytracingLocalRootSignature);
@@ -554,9 +556,9 @@ void D3D12RaytracingSimpleLighting::BuildShaderTables()
     // Hit group shader table
     {
         struct RootArguments {
-            CubeConstantBuffer cb;
+            MaterialConstantBuffer cb;
         } rootArguments;
-        rootArguments.cb = m_cubeCB;
+        rootArguments.cb = m_materialCB;
 
         UINT numShaderRecords = 1;
         UINT shaderRecordSize = shaderIdentifierSize + sizeof(rootArguments);

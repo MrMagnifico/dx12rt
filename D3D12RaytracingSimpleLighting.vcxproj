@@ -180,8 +180,8 @@
     <ClInclude Include="src\minipbrt\minipbrt.h" />
     <ClInclude Include="src\DeviceResources.h" />
     <ClInclude Include="src\DirectXRaytracingHelper.h" />
-    <ClInclude Include="src\HlslCompat.h" />
-    <ClInclude Include="src\RaytracingHlslCompat.h" />
+    <ClInclude Include="src\hlsl\HlslCompat.h" />
+    <ClInclude Include="src\hlsl\RaytracingHlslCompat.h" />
     <ClInclude Include="src\utils\StepTimer.h" />
     <ClInclude Include="src\tinyobjloader\tiny_obj_loader.h" />
     <ClInclude Include="src\Win32Application.h" />

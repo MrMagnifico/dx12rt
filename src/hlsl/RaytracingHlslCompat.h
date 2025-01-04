@@ -27,9 +27,10 @@ struct SceneConstantBuffer
     XMVECTOR cameraPosition;
 };
 
-struct CubeConstantBuffer
+struct MaterialConstantBuffer
 {
-    XMFLOAT4 albedo;
+    XMFLOAT4 defaultAlbedo;             // Alpha channel is not used
+    XMFLOAT4 defaultMetalAndRoughness;  // R channel encodes metal, G channel encodes roughness, rest is unused
 };
 
 struct Vertex
@@ -42,6 +43,13 @@ struct PointLight
 {
     XMFLOAT3 position;
     XMFLOAT3 color;
+};
+
+struct MaterialPBR
+{
+    XMFLOAT3 albedo;
+    float metallic;
+    float roughness;
 };
 
 #endif // RAYTRACINGHLSLCOMPAT_H

@@ -12,7 +12,7 @@
 #ifndef RAYTRACING_HLSL
 #define RAYTRACING_HLSL
 
-#include "RaytracingHlslCompat.h"
+#include "hlsl/RaytracingHlslCompat.h"
 
 RaytracingAccelerationStructure Scene : register(t0, space0);
 RWTexture2D<float4> RenderTarget : register(u0);
@@ -21,7 +21,7 @@ ByteAddressBuffer Indices : register(t2, space0);
 StructuredBuffer<Vertex> Vertices : register(t3, space0);
 
 ConstantBuffer<SceneConstantBuffer> g_sceneCB : register(b0);
-ConstantBuffer<CubeConstantBuffer> g_cubeCB : register(b1);
+ConstantBuffer<MaterialConstantBuffer> g_materialCB : register(b1);
 
 struct RayPayload {
     // Input
@@ -84,7 +84,7 @@ float3 CalculateDiffuseLighting(float3 hitPosition, float3 normal) {
         // Compute diffuse contribution
         float3 pixelToLight     = normalize(pointLight.position - hitPosition);
         float fNDotL            = max(0.0f, dot(pixelToLight, normal));
-        finalDiffuse            += g_cubeCB.albedo.rgb * pointLight.color * fNDotL;
+        finalDiffuse            += g_materialCB.defaultAlbedo.rgb * pointLight.color * fNDotL;
     }
     return finalDiffuse;
 }
