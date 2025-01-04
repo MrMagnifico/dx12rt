@@ -61,19 +61,25 @@ LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
     }
 
     // Loop over materials
-    static constexpr float OBJ_DEFAULT_METALLIC     = 0.25f;
-    static constexpr float OBJ_DEFAULT_ROUGHNESS    = 0.30f;
     for (const tinyobj::material_t& material : materials) {
         MaterialPBR pbr = {};
         
-        // Actually loaded from the file
-        pbr.albedo.x = material.diffuse[0];
-        pbr.albedo.y = material.diffuse[1];
-        pbr.albedo.z = material.diffuse[2];
+        // Compute albedo as weighted average of diffuse and specular
+        float albedo_normalizing_factor_r   = material.diffuse[0] + material.specular[0];
+        pbr.albedo.x                        = (material.diffuse[0] / albedo_normalizing_factor_r) * material.diffuse[0] + (material.specular[0] / albedo_normalizing_factor_r) * material.specular[0];
+        float albedo_normalizing_factor_g   = material.diffuse[1] + material.specular[1];
+        pbr.albedo.y                        = (material.diffuse[1] / albedo_normalizing_factor_r) * material.diffuse[1] + (material.specular[1] / albedo_normalizing_factor_r) * material.specular[1];
+        float albedo_normalizing_factor_b   = material.diffuse[2] + material.specular[2];
+        pbr.albedo.z                        = (material.diffuse[2] / albedo_normalizing_factor_r) * material.diffuse[2] + (material.specular[2] / albedo_normalizing_factor_r) * material.specular[2];
 
-        // Default stubs
-        pbr.metallic    = OBJ_DEFAULT_METALLIC;
-        pbr.roughness   = OBJ_DEFAULT_ROUGHNESS;
+        // Compute roughness as a weighted average of specular components
+        float specular_normalizing_factor   = max(material.specular[0] + material.specular[1] + material.specular[2], 0.001f);
+        pbr.roughness                       = (material.specular[0] / specular_normalizing_factor) * material.specular[0] +
+                                              (material.specular[1] / specular_normalizing_factor) * material.specular[1] + 
+                                              (material.specular[2] / specular_normalizing_factor) * material.specular[2];
+
+        // Use a constant default metallic
+        pbr.metallic = 0.25f;
 
         loaded_obj.materials.push_back(pbr);
     }

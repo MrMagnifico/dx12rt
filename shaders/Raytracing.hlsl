@@ -13,6 +13,7 @@
 #define RAYTRACING_HLSL
 
 #include "hlsl/RaytracingHlslCompat.h"
+#include "Materials.hlsl"
 
 RaytracingAccelerationStructure Scene : register(t0, space0);
 RWTexture2D<float4> RenderTarget : register(u0);
@@ -62,8 +63,42 @@ inline void GenerateCameraRay(uint2 index, out float3 origin, out float3 directi
     direction = normalize(world.xyz - origin);
 }
 
+float3 LightingPBR(float3 hitPosition, float3 cameraDirection, float3 normal,
+                   MaterialPBR material, float3 F0,
+                   float3 lightSamplePosition, float3 lightSampleColor) {
+    // Radiance and geometry terms
+    float3 L            = normalize(lightSamplePosition - hitPosition);
+    float3 H            = normalize(cameraDirection + L);
+    float distance      = length(lightSamplePosition - hitPosition);
+    float attenuation   = 1.0f / (distance * distance);
+    float3 radiance     = lightSampleColor * attenuation;
+        
+    // Cook-Torrence BRDF
+    float NDF   = DistributionGGX(normal, H, material.roughness);
+    float G     = GeometrySmith(normal, cameraDirection, L, material.roughness);
+    float3 F    = fresnelSchlick(max(dot(H, cameraDirection), 0.0f), F0);
+    
+    // Diffuse
+    float3 kS   = F;
+    float3 kD   = float3(1.0f, 1.0f, 1.0f) - kS;
+    kD          *= 1.0f - material.metallic;
+        
+    // Specular
+    float3 numerator    = NDF * G * F;
+    float denominator   = 4.0f * max(dot(normal, cameraDirection), 0.0f) * max(dot(normal, L), 0.0f) + 0.0001f;
+    float3 specular     = numerator / denominator;
+            
+    // Compute outgoing irradiance
+    float NdotL = max(dot(normal, L), 0.0);
+    return (kD * material.albedo / PI + specular) * radiance * NdotL;
+}
+
 // Full lighting calculation.
-float3 CalculateLighting(float3 hitPosition, float3 normal, MaterialPBR material) {
+float3 CalculateLighting(float3 hitPosition, float3 cameraDirection, float3 normal, MaterialPBR material) {
+    // Constants given the material
+    float3 F0   = float3(0.04f, 0.04f, 0.04f);
+    F0          = lerp(F0, material.albedo, material.metallic);
+    
     uint numLights, lightSize;
     PointLights.GetDimensions(numLights, lightSize);
     float3 accumulatedColor = float3(0.0f, 0.0f, 0.0f);
@@ -83,10 +118,8 @@ float3 CalculateLighting(float3 hitPosition, float3 normal, MaterialPBR material
             continue;
         }
         
-        // Compute diffuse contribution
-        float3 pixelToLight = normalize(pointLight.position - hitPosition);
-        float fNDotL        = max(0.0f, dot(pixelToLight, normal));
-        accumulatedColor    += material.albedo * pointLight.color * fNDotL;
+        // Compute contribution from this light
+        accumulatedColor += LightingPBR(hitPosition, cameraDirection, normal, material, F0, pointLight.position, pointLight.color);
     }
     return accumulatedColor;
 }
@@ -118,7 +151,6 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
     if (payload.isShadowRay) {
         payload.hit = true;
     } else {
-        float3 hitPosition = HitWorldPosition();
 
         // Load up 3 32 bit indices for the triangle.
         static const uint indexSizeInBytes      = 4;
@@ -152,8 +184,10 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
         float3 triangleNormal = HitAttribute(vertexNormals, attr);
 
         // Compute the final pixel color
-        float3 diffuseColor = CalculateLighting(hitPosition, triangleNormal, triangleMaterial);
-        float3 pixelColor   = diffuseColor + float3(0.1f, 0.1f, 0.1f); // Add a constant ambient term
+        float3 hitPosition      = HitWorldPosition();
+        float3 cameraDirection  = -WorldRayDirection();
+        float3 diffuseColor     = CalculateLighting(hitPosition, cameraDirection, triangleNormal, triangleMaterial);
+        float3 pixelColor       = diffuseColor + float3(0.1f, 0.1f, 0.1f); // Add a constant ambient term
     
         // Populate payload members
         payload.hit     = true;

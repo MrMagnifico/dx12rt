@@ -90,7 +90,7 @@ void D3D12RaytracingSimpleLighting::InitializeScene()
     {
         // Initialize the view and projection inverse matrices.
         m_eye = { 0.0f, 2.0f, -5.0f, 1.0f };
-        m_at = { 0.0f, 0.0f, 0.0f, 1.0f };
+        m_at = { 0.0f, 0.8f, 0.0f, 1.0f };
         XMVECTOR right = { 1.0f, 0.0f, 0.0f, 0.0f };
 
         XMVECTOR direction = XMVector4Normalize(m_at - m_eye);
@@ -511,12 +511,12 @@ void D3D12RaytracingSimpleLighting::BuildLightBuffers()
     // TODO: Acquire these in a programmatic manner instead of just creating dummies
     std::vector<PointLight> pointLights;
     PointLight p0 = {
-        .position = { 0.5f, 1.0f, -0.2f },
-        .color = { 0.25f, 0.25f, 0.25f }
+        .position = { 0.5f, 1.0f, -0.3f },
+        .color = { 0.35f, 0.35f, 0.35f }
     };
     PointLight p1 = {
         .position = { -0.5f, 1.0f, 0.2f },
-        .color = { 0.4f, 0.4f, 0.4f }
+        .color = { 0.65f, 0.65f, 0.65f }
     };
     pointLights.push_back(p0);
     pointLights.push_back(p1);
