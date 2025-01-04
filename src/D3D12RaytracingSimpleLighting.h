@@ -12,8 +12,9 @@
 #pragma once
 
 #include "DXSample.h"
-#include "utils/StepTimer.h"
 #include "hlsl/RaytracingHlslCompat.h"
+#include "utils/LoadScene.h"
+#include "utils/StepTimer.h"
 
 namespace GlobalRootSignatureParams {
     enum Value {
@@ -21,6 +22,8 @@ namespace GlobalRootSignatureParams {
         AccelerationStructureSlot,
         SceneConstantSlot,
         PointLightsBufferSlot,
+        MaterialsSlot,
+        MaterialIndicesSlot,
         VertexBuffersSlot,
         Count 
     };
@@ -92,8 +95,8 @@ private:
     // Scene data buffers
     D3DBuffer m_indexBuffer;
     D3DBuffer m_vertexBuffer;
-    D3DBuffer m_materialsBuffer;
     D3DBuffer m_materialIndicesBuffer;
+    D3DBuffer m_materialsBuffer;
     D3DBuffer m_pointLightsBuffer;
 
     // Acceleration structure
@@ -138,8 +141,8 @@ private:
     void CreateDescriptorHeap();
     void CreateRaytracingOutputResource();
     void BuildLightBuffers();
-    void BuildGeometry();
-    void BuildMaterials();
+    void BuildMaterials(LoadScene::LoadedObj loaded_obj);
+    void BuildGeometry(LoadScene::LoadedObj loaded_obj);
     void BuildAccelerationStructures();
     void BuildShaderTables();
     void UpdateForSizeChange(UINT clientWidth, UINT clientHeight);

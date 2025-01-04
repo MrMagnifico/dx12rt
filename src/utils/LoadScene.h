@@ -11,7 +11,7 @@ struct LoadedObj {
 	std::vector<Index> indices;
 
 	// Materials
-	std::vector<int32_t> material_indices; // Index into material buffer per triangle
+	std::vector<MaterialIndex> material_indices; // Index into material buffer per triangle
 	std::vector<MaterialPBR> materials;
 };
 

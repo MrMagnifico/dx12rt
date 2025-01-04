@@ -29,16 +29,18 @@ LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
         // Loop over faces(polygon)
         size_t index_offset = 0;
         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-            size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+            // Material index for this face
+            loaded_obj.material_indices.push_back(shapes[s].mesh.material_ids[f]);
 
             // Loop over vertices in the face.
+            size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
             for (size_t v = 0; v < fv; v++) {
                 // Get face index and ensure normals are present
                 tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
                 assert(idx.normal_index >= 0);
 
+                // Index data
                 loaded_obj.indices.push_back(static_cast<UINT32>(index_offset + v));
-                loaded_obj.material_indices.push_back(shapes[s].mesh.material_ids[index_offset + v]);
 
                 // Process vertex data
                 Vertex vertex = {};
@@ -62,7 +64,7 @@ LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
     static constexpr float OBJ_DEFAULT_METALLIC     = 0.25f;
     static constexpr float OBJ_DEFAULT_ROUGHNESS    = 0.30f;
     for (const tinyobj::material_t& material : materials) {
-        MaterialPBR pbr;
+        MaterialPBR pbr = {};
         
         // Actually loaded from the file
         pbr.albedo.x = material.diffuse[0];
@@ -72,6 +74,8 @@ LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
         // Default stubs
         pbr.metallic    = OBJ_DEFAULT_METALLIC;
         pbr.roughness   = OBJ_DEFAULT_ROUGHNESS;
+
+        loaded_obj.materials.push_back(pbr);
     }
 
     return loaded_obj;

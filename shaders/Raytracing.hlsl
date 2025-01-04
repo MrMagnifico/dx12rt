@@ -17,8 +17,10 @@
 RaytracingAccelerationStructure Scene : register(t0, space0);
 RWTexture2D<float4> RenderTarget : register(u0);
 StructuredBuffer<PointLight> PointLights : register(t1, space0);
-ByteAddressBuffer Indices : register(t2, space0);
-StructuredBuffer<Vertex> Vertices : register(t3, space0);
+StructuredBuffer<MaterialPBR> Materials : register(t2, space0);
+ByteAddressBuffer MaterialIndices: register(t3, space0);
+ByteAddressBuffer Indices : register(t4, space0);
+StructuredBuffer<Vertex> Vertices : register(t5, space0);
 
 ConstantBuffer<SceneConstantBuffer> g_sceneCB : register(b0);
 ConstantBuffer<MaterialConstantBuffer> g_materialCB : register(b1);
@@ -60,11 +62,11 @@ inline void GenerateCameraRay(uint2 index, out float3 origin, out float3 directi
     direction = normalize(world.xyz - origin);
 }
 
-// Diffuse lighting calculation.
-float3 CalculateDiffuseLighting(float3 hitPosition, float3 normal) {
+// Full lighting calculation.
+float3 CalculateLighting(float3 hitPosition, float3 normal, MaterialPBR material) {
     uint numLights, lightSize;
     PointLights.GetDimensions(numLights, lightSize);
-    float3 finalDiffuse = float3(0.0f, 0.0f, 0.0f);
+    float3 accumulatedColor = float3(0.0f, 0.0f, 0.0f);
     for (uint i = 0u; i < numLights; i++) {
         PointLight pointLight   = PointLights[i];
         
@@ -82,11 +84,11 @@ float3 CalculateDiffuseLighting(float3 hitPosition, float3 normal) {
         }
         
         // Compute diffuse contribution
-        float3 pixelToLight     = normalize(pointLight.position - hitPosition);
-        float fNDotL            = max(0.0f, dot(pixelToLight, normal));
-        finalDiffuse            += g_materialCB.defaultAlbedo.rgb * pointLight.color * fNDotL;
+        float3 pixelToLight = normalize(pointLight.position - hitPosition);
+        float fNDotL        = max(0.0f, dot(pixelToLight, normal));
+        accumulatedColor    += material.albedo * pointLight.color * fNDotL;
     }
-    return finalDiffuse;
+    return accumulatedColor;
 }
 
 [shader("raygeneration")]
@@ -118,14 +120,26 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
     } else {
         float3 hitPosition = HitWorldPosition();
 
-        // Get the base index of the triangle's first 32 bit index.
+        // Load up 3 32 bit indices for the triangle.
         static const uint indexSizeInBytes      = 4;
         static const uint indicesPerTriangle    = 3;
         static const uint triangleIndexStride   = indicesPerTriangle * indexSizeInBytes;
         const uint baseIndex                    = PrimitiveIndex() * triangleIndexStride;
-
-        // Load up 3 32 bit indices for the triangle.
-        const uint3 indices = Indices.Load3(baseIndex);
+        const uint3 indices                     = Indices.Load3(baseIndex);
+        
+        // Load the corrsponding material for the triangle (or the default material if this triangle does not have one).
+        static const uint materialIndexSizeInBytes  = 4;
+        const uint triangleIndex                    = PrimitiveIndex() * materialIndexSizeInBytes;
+        const int materialIndex                     = asint(MaterialIndices.Load(triangleIndex));
+        MaterialPBR triangleMaterial;
+        if (materialIndex == -1) {
+            // No material corresponding to this triangle, use default material properties
+            triangleMaterial.albedo     = g_materialCB.defaultAlbedo.rgb;
+            triangleMaterial.metallic   = g_materialCB.defaultMetalAndRoughness.r;
+            triangleMaterial.roughness  = g_materialCB.defaultMetalAndRoughness.g;
+        } else {
+            triangleMaterial = Materials[materialIndex];
+        }
 
         // Retrieve corresponding vertex normals for the triangle vertices.
         float3 vertexNormals[3] = { 
@@ -138,7 +152,7 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
         float3 triangleNormal = HitAttribute(vertexNormals, attr);
 
         // Compute the final pixel color
-        float3 diffuseColor = CalculateDiffuseLighting(hitPosition, triangleNormal);
+        float3 diffuseColor = CalculateLighting(hitPosition, triangleNormal, triangleMaterial);
         float3 pixelColor   = diffuseColor + float3(0.1f, 0.1f, 0.1f); // Add a constant ambient term
     
         // Populate payload members
