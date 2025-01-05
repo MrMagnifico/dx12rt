@@ -27,10 +27,7 @@ enum DescriptorHeapSlots {
     TopLevelAccelerationStructure,
     PointLightsBuffer,
     MaterialsBuffer,
-    MaterialIndexBuffer,
-    IndexBuffer,
-    VertexBuffer,
-    DescriptorHeapSlotsCount
+    IndexVertexBuffersBegin, // All slots as of this one are pairs of index and vertex buffers (i.e. ByteAddressBuffer followed by StructuredBuffer<Vertex>) for each object/BLAS in the scene
 };
 
 struct SceneConstantBuffer
