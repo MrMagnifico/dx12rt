@@ -16,25 +16,11 @@
 #include "utils/LoadScene.h"
 #include "utils/StepTimer.h"
 
-namespace GlobalRootSignatureParams {
-    enum Value {
-        OutputViewSlot = 0,
-        AccelerationStructureSlot,
-        SceneConstantSlot,
-        PointLightsBufferSlot,
-        MaterialsSlot,
-        MaterialIndicesSlot,
-        VertexBuffersSlot,
-        Count 
-    };
-}
+enum ConstantBufferSlots {
+    Scene = 0,
+    ConstantBufferSlotsCount
+};
 
-namespace LocalRootSignatureParams {
-    enum Value {
-        CubeConstantSlot = 0,
-        Count 
-    };
-}
 
 class D3D12RaytracingSimpleLighting : public DXSample
 {
@@ -72,9 +58,8 @@ private:
     ComPtr<ID3D12GraphicsCommandList5> m_dxrCommandList;
     ComPtr<ID3D12StateObject> m_dxrStateObject;
 
-    // Root signatures
+    // Root signature
     ComPtr<ID3D12RootSignature> m_raytracingGlobalRootSignature;
-    ComPtr<ID3D12RootSignature> m_raytracingLocalRootSignature;
 
     // Descriptors
     ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
@@ -83,7 +68,6 @@ private:
     
     // Constant buffers
     SceneConstantBuffer m_sceneCB[FrameCount];
-    MaterialConstantBuffer m_materialCB;
 
     struct D3DBuffer
     {
@@ -99,9 +83,11 @@ private:
     D3DBuffer m_materialsBuffer;
     D3DBuffer m_pointLightsBuffer;
 
-    // Acceleration structure
+    // Acceleration structures
     ComPtr<ID3D12Resource> m_bottomLevelAccelerationStructure;
     ComPtr<ID3D12Resource> m_topLevelAccelerationStructure;
+    D3D12_CPU_DESCRIPTOR_HANDLE m_tlasCpuDescriptorHandle;
+    D3D12_GPU_DESCRIPTOR_HANDLE m_tlasGpuDescriptorHandle;
 
     // Raytracing output
     ComPtr<ID3D12Resource> m_raytracingOutput;
@@ -134,9 +120,8 @@ private:
     void ReleaseDeviceDependentResources();
     void ReleaseWindowSizeDependentResources();
     void CreateRaytracingInterfaces();
-    void SerializeAndCreateRaytracingRootSignature(D3D12_ROOT_SIGNATURE_DESC& desc, ComPtr<ID3D12RootSignature>* rootSig);
+    void SerializeAndCreateVersionedRootSignature(D3D12_VERSIONED_ROOT_SIGNATURE_DESC& desc, ComPtr<ID3D12RootSignature>* rootSig);
     void CreateRootSignatures();
-    void CreateLocalRootSignatureSubobjects(CD3DX12_STATE_OBJECT_DESC* raytracingPipeline);
     void CreateRaytracingPipelineStateObject();
     void CreateDescriptorHeap();
     void CreateRaytracingOutputResource();
@@ -149,5 +134,5 @@ private:
     void CopyRaytracingOutputToBackbuffer();
     void CalculateFrameStats();
     UINT AllocateDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE* cpuDescriptor, UINT descriptorIndexToUse = UINT_MAX);
-    UINT CreateBufferSRV(D3DBuffer* buffer, UINT numElements, UINT elementSize);
+    UINT CreateBufferSRV(D3DBuffer* buffer, UINT numElements, UINT elementSize, UINT descriptorIndexToUse = UINT_MAX);
 };

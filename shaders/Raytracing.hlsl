@@ -12,19 +12,22 @@
 #ifndef RAYTRACING_HLSL
 #define RAYTRACING_HLSL
 
-#include "hlsl/RaytracingHlslCompat.h"
+#include "../src/hlsl/RaytracingHlslCompat.h"
 #include "Materials.hlsl"
 
-RaytracingAccelerationStructure Scene : register(t0, space0);
-RWTexture2D<float4> RenderTarget : register(u0);
-StructuredBuffer<PointLight> PointLights : register(t1, space0);
-StructuredBuffer<MaterialPBR> Materials : register(t2, space0);
-ByteAddressBuffer MaterialIndices: register(t3, space0);
-ByteAddressBuffer Indices : register(t4, space0);
-StructuredBuffer<Vertex> Vertices : register(t5, space0);
+// Bindless resources
+// Buffers
+static StructuredBuffer<PointLight> PointLights = ResourceDescriptorHeap[DescriptorHeapSlots::PointLightsBuffer];
+static StructuredBuffer<MaterialPBR> Materials  = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialsBuffer];
+static ByteAddressBuffer MaterialIndices        = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialIndexBuffer];
+static ByteAddressBuffer Indices                = ResourceDescriptorHeap[DescriptorHeapSlots::IndexBuffer];
+static StructuredBuffer<Vertex> Vertices        = ResourceDescriptorHeap[DescriptorHeapSlots::VertexBuffer];
+// Others
+static RaytracingAccelerationStructure Scene    = ResourceDescriptorHeap[DescriptorHeapSlots::TopLevelAccelerationStructure];
+static RWTexture2D<float4> RenderTarget         = ResourceDescriptorHeap[DescriptorHeapSlots::OutputRenderTarget];
 
+// Constant buffers
 ConstantBuffer<SceneConstantBuffer> g_sceneCB : register(b0);
-ConstantBuffer<MaterialConstantBuffer> g_materialCB : register(b1);
 
 struct RayPayload {
     // Input
@@ -166,9 +169,9 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
         MaterialPBR triangleMaterial;
         if (materialIndex == -1) {
             // No material corresponding to this triangle, use default material properties
-            triangleMaterial.albedo     = g_materialCB.defaultAlbedo.rgb;
-            triangleMaterial.metallic   = g_materialCB.defaultMetalAndRoughness.r;
-            triangleMaterial.roughness  = g_materialCB.defaultMetalAndRoughness.g;
+            triangleMaterial.albedo     = g_sceneCB.defaultAlbedo.rgb;
+            triangleMaterial.metallic   = g_sceneCB.defaultMetalAndRoughness.r;
+            triangleMaterial.roughness  = g_sceneCB.defaultMetalAndRoughness.g;
         } else {
             triangleMaterial = Materials[materialIndex];
         }

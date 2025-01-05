@@ -22,14 +22,24 @@ typedef UINT32 Index;
 typedef INT32 MaterialIndex;
 #endif
 
-struct SceneConstantBuffer
-{
-    XMMATRIX projectionToWorld;
-    XMVECTOR cameraPosition;
+enum DescriptorHeapSlots {
+    OutputRenderTarget = 0,
+    TopLevelAccelerationStructure,
+    PointLightsBuffer,
+    MaterialsBuffer,
+    MaterialIndexBuffer,
+    IndexBuffer,
+    VertexBuffer,
+    DescriptorHeapSlotsCount
 };
 
-struct MaterialConstantBuffer
+struct SceneConstantBuffer
 {
+    // Camera
+    XMMATRIX projectionToWorld;
+    XMVECTOR cameraPosition;
+
+    // Default material
     XMFLOAT4 defaultAlbedo;             // Alpha channel is not used
     XMFLOAT4 defaultMetalAndRoughness;  // R channel encodes metal, G channel encodes roughness, rest is unused
 };

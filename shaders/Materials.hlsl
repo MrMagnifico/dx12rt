@@ -5,7 +5,7 @@
 #define PI 3.14159265359
 #endif
 
-#include "hlsl/RaytracingHlslCompat.h"
+#include "../src/hlsl/RaytracingHlslCompat.h"
 
 float3 fresnelSchlick(float cosTheta, float3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
