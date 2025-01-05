@@ -12,8 +12,9 @@
 #pragma once
 
 #include "DXSample.h"
+#include "hlsl/RaytracingHlslCompat.h"
+#include "utils/LoadScene.h"
 #include "utils/StepTimer.h"
-#include "RaytracingHlslCompat.h"
 
 namespace GlobalRootSignatureParams {
     enum Value {
@@ -21,6 +22,8 @@ namespace GlobalRootSignatureParams {
         AccelerationStructureSlot,
         SceneConstantSlot,
         PointLightsBufferSlot,
+        MaterialsSlot,
+        MaterialIndicesSlot,
         VertexBuffersSlot,
         Count 
     };
@@ -78,19 +81,22 @@ private:
     UINT m_descriptorsAllocated;
     UINT m_descriptorSize;
     
-    // Raytracing scene
+    // Constant buffers
     SceneConstantBuffer m_sceneCB[FrameCount];
-    CubeConstantBuffer m_cubeCB;
+    MaterialConstantBuffer m_materialCB;
 
-    // Non-constant buffers
     struct D3DBuffer
     {
         ComPtr<ID3D12Resource> resource;
         D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptorHandle;
         D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle;
     };
+
+    // Scene data buffers
     D3DBuffer m_indexBuffer;
     D3DBuffer m_vertexBuffer;
+    D3DBuffer m_materialIndicesBuffer;
+    D3DBuffer m_materialsBuffer;
     D3DBuffer m_pointLightsBuffer;
 
     // Acceleration structure
@@ -135,7 +141,8 @@ private:
     void CreateDescriptorHeap();
     void CreateRaytracingOutputResource();
     void BuildLightBuffers();
-    void BuildGeometry();
+    void BuildMaterials(LoadScene::LoadedObj loaded_obj);
+    void BuildGeometry(LoadScene::LoadedObj loaded_obj);
     void BuildAccelerationStructures();
     void BuildShaderTables();
     void UpdateForSizeChange(UINT clientWidth, UINT clientHeight);

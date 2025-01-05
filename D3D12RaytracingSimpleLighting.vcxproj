@@ -180,8 +180,8 @@
     <ClInclude Include="src\minipbrt\minipbrt.h" />
     <ClInclude Include="src\DeviceResources.h" />
     <ClInclude Include="src\DirectXRaytracingHelper.h" />
-    <ClInclude Include="src\HlslCompat.h" />
-    <ClInclude Include="src\RaytracingHlslCompat.h" />
+    <ClInclude Include="src\hlsl\HlslCompat.h" />
+    <ClInclude Include="src\hlsl\RaytracingHlslCompat.h" />
     <ClInclude Include="src\utils\StepTimer.h" />
     <ClInclude Include="src\tinyobjloader\tiny_obj_loader.h" />
     <ClInclude Include="src\Win32Application.h" />
@@ -208,6 +208,10 @@
     <ClCompile Include="src\Main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="shaders\Materials.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="shaders\Raytracing.hlsl">
       <EnableDebuggingInformation Condition="'$(Configuration)'=='Debug'">true</EnableDebuggingInformation>
       <AdditionalOptions Condition="'$(Configuration)'=='Debug'">-Qembed_debug %(AdditionalOptions)</AdditionalOptions>

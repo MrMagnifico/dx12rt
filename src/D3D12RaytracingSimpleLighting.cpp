@@ -15,7 +15,6 @@
 #include "D3D12RaytracingSimpleLighting.h"
 #include "DirectXRaytracingHelper.h"
 #include "CompiledShaders\Raytracing.hlsl.h"
-#include "utils\LoadScene.h"
 
 using namespace std;
 using namespace DX;
@@ -81,15 +80,17 @@ void D3D12RaytracingSimpleLighting::InitializeScene()
     auto frameIndex = m_deviceResources->GetCurrentFrameIndex();
 
     // Setup materials.
+    // TODO: Get these from a GUI
     {
-        m_cubeCB.albedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        m_materialCB.defaultAlbedo              = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        m_materialCB.defaultMetalAndRoughness   = XMFLOAT4(0.1f, 0.8f, 0.0f, 0.0f);
     }
 
     // Setup camera.
     {
         // Initialize the view and projection inverse matrices.
         m_eye = { 0.0f, 2.0f, -5.0f, 1.0f };
-        m_at = { 0.0f, 0.0f, 0.0f, 1.0f };
+        m_at = { 0.0f, 0.8f, 0.0f, 1.0f };
         XMVECTOR right = { 1.0f, 0.0f, 0.0f, 0.0f };
 
         XMVECTOR direction = XMVector4Normalize(m_at - m_eye);
@@ -157,8 +158,11 @@ void D3D12RaytracingSimpleLighting::CreateDeviceDependentResources()
     // Build light sources buffers to be used for lighting
     BuildLightBuffers();
 
-    // Build geometry to be used in the sample.
-   BuildGeometry();
+    // Build geometry and materials to be used.
+    std::filesystem::path cornell_path  = "C:\\Users\\willy\\Documents\\Random Bullshit\\dx12-rt\\scenes\\obj\\CornellBox-Mirror-Rotated.obj";
+    LoadScene::LoadedObj loaded_obj     = LoadScene::load_obj(cornell_path.string());
+    BuildMaterials(loaded_obj);
+    BuildGeometry(loaded_obj);
 
     // Build raytracing acceleration structures from the generated geometry.
     BuildAccelerationStructures();
@@ -190,17 +194,21 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
     // Global Root Signature
     // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     {
-        CD3DX12_DESCRIPTOR_RANGE ranges[3]; // Perfomance TIP: Order from most frequent to least frequent.
+        CD3DX12_DESCRIPTOR_RANGE ranges[5]; // Perfomance TIP: Order from most frequent to least frequent.
         ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);  // 1 output texture
         ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);  // 1 point lights buffer
-        ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 2);  // 2 static index and vertex buffers.
+        ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);  // 1 materials buffer
+        ranges[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);  // 1 material indices buffer
+        ranges[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 4);  // 2 static index and vertex buffers.
 
         CD3DX12_ROOT_PARAMETER rootParameters[GlobalRootSignatureParams::Count];
         rootParameters[GlobalRootSignatureParams::OutputViewSlot].InitAsDescriptorTable(1, &ranges[0]);
         rootParameters[GlobalRootSignatureParams::AccelerationStructureSlot].InitAsShaderResourceView(0);
         rootParameters[GlobalRootSignatureParams::SceneConstantSlot].InitAsConstantBufferView(0);
         rootParameters[GlobalRootSignatureParams::PointLightsBufferSlot].InitAsDescriptorTable(1, &ranges[1]);
-        rootParameters[GlobalRootSignatureParams::VertexBuffersSlot].InitAsDescriptorTable(1, &ranges[2]);
+        rootParameters[GlobalRootSignatureParams::MaterialsSlot].InitAsDescriptorTable(1, &ranges[2]);
+        rootParameters[GlobalRootSignatureParams::MaterialIndicesSlot].InitAsDescriptorTable(1, &ranges[3]);
+        rootParameters[GlobalRootSignatureParams::VertexBuffersSlot].InitAsDescriptorTable(1, &ranges[4]);
         CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
     }
@@ -209,7 +217,7 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
     // This is a root signature that enables a shader to have unique arguments that come from shader tables.
     {
         CD3DX12_ROOT_PARAMETER rootParameters[LocalRootSignatureParams::Count];
-        rootParameters[LocalRootSignatureParams::CubeConstantSlot].InitAsConstants(SizeOfInUint32(m_cubeCB), 1);
+        rootParameters[LocalRootSignatureParams::CubeConstantSlot].InitAsConstants(SizeOfInUint32(m_materialCB), 1);
         CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
         SerializeAndCreateRaytracingRootSignature(localRootSignatureDesc, &m_raytracingLocalRootSignature);
@@ -344,11 +352,13 @@ void D3D12RaytracingSimpleLighting::CreateDescriptorHeap()
     auto device = m_deviceResources->GetD3DDevice();
 
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    // Allocate a heap for 4 descriptors:
+    // Allocate a heap for 6 descriptors:
     // 1 - raytracing output texture SRV
     // 1 - point light sources SRV
+    // 1 - materials SRV
+    // 1 - material indices SRV
     // 2 - vertex and index buffer SRVs
-    descriptorHeapDesc.NumDescriptors = 4; 
+    descriptorHeapDesc.NumDescriptors = 6; 
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     descriptorHeapDesc.NodeMask = 0;
@@ -359,12 +369,9 @@ void D3D12RaytracingSimpleLighting::CreateDescriptorHeap()
 }
 
 // Build geometry used in the sample.
-void D3D12RaytracingSimpleLighting::BuildGeometry()
+void D3D12RaytracingSimpleLighting::BuildGeometry(LoadScene::LoadedObj loaded_obj)
 {
     auto device = m_deviceResources->GetD3DDevice();
-
-    std::filesystem::path cornell_path = "C:\\Users\\willy\\Documents\\Random Bullshit\\dx12-rt\\scenes\\obj\\CornellBox-Mirror-Rotated.obj";
-    LoadScene::LoadedObj loaded_obj = LoadScene::load_obj(cornell_path.string());
 
     AllocateUploadBuffer(device, loaded_obj.indices.data(), loaded_obj.indices.size() * sizeof(Index), &m_indexBuffer.resource);
     AllocateUploadBuffer(device, loaded_obj.vertices.data(), loaded_obj.vertices.size() * sizeof(Vertex), &m_vertexBuffer.resource);
@@ -374,6 +381,17 @@ void D3D12RaytracingSimpleLighting::BuildGeometry()
     UINT descriptorIndexIB = CreateBufferSRV(&m_indexBuffer, static_cast<UINT>(loaded_obj.indices.size()), 0);
     UINT descriptorIndexVB = CreateBufferSRV(&m_vertexBuffer, static_cast<UINT>(loaded_obj.vertices.size()), sizeof(Vertex));
     ThrowIfFalse(descriptorIndexVB == descriptorIndexIB + 1, L"Vertex Buffer descriptor index must follow that of Index Buffer descriptor index!");
+}
+
+void D3D12RaytracingSimpleLighting::BuildMaterials(LoadScene::LoadedObj loaded_obj)
+{
+    ID3D12Device* device = m_deviceResources->GetD3DDevice();
+    
+    AllocateUploadBuffer(device, loaded_obj.material_indices.data(), loaded_obj.material_indices.size() * sizeof(MaterialIndex), &m_materialIndicesBuffer.resource);
+    AllocateUploadBuffer(device, loaded_obj.materials.data(), loaded_obj.materials.size() * sizeof(MaterialPBR), &m_materialsBuffer.resource);
+
+    CreateBufferSRV(&m_materialIndicesBuffer, static_cast<UINT>(loaded_obj.material_indices.size()), 0);
+    CreateBufferSRV(&m_materialsBuffer, static_cast<UINT>(loaded_obj.materials.size()), sizeof(MaterialPBR));
 }
 
 // Build acceleration structures needed for raytracing.
@@ -493,12 +511,12 @@ void D3D12RaytracingSimpleLighting::BuildLightBuffers()
     // TODO: Acquire these in a programmatic manner instead of just creating dummies
     std::vector<PointLight> pointLights;
     PointLight p0 = {
-        .position = { 0.5f, 1.0f, -0.2f },
-        .color = { 1.0f, 0.0f, -0.2f }
+        .position = { 0.5f, 1.0f, -0.3f },
+        .color = { 0.35f, 0.35f, 0.35f }
     };
     PointLight p1 = {
         .position = { -0.5f, 1.0f, 0.2f },
-        .color = { 0.0f, 0.0f, 1.0f }
+        .color = { 0.65f, 0.65f, 0.65f }
     };
     pointLights.push_back(p0);
     pointLights.push_back(p1);
@@ -554,9 +572,9 @@ void D3D12RaytracingSimpleLighting::BuildShaderTables()
     // Hit group shader table
     {
         struct RootArguments {
-            CubeConstantBuffer cb;
+            MaterialConstantBuffer cb;
         } rootArguments;
-        rootArguments.cb = m_cubeCB;
+        rootArguments.cb = m_materialCB;
 
         UINT numShaderRecords = 1;
         UINT shaderRecordSize = shaderIdentifierSize + sizeof(rootArguments);
@@ -615,6 +633,8 @@ void D3D12RaytracingSimpleLighting::DoRaytracing()
         descriptorSetCommandList->SetDescriptorHeaps(1, m_descriptorHeap.GetAddressOf());
         // Set index and successive vertex buffer decriptor tables
         commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::VertexBuffersSlot, m_indexBuffer.gpuDescriptorHandle);
+        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::MaterialIndicesSlot, m_materialIndicesBuffer.gpuDescriptorHandle);
+        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::MaterialsSlot, m_materialsBuffer.gpuDescriptorHandle);
         commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::PointLightsBufferSlot, m_pointLightsBuffer.gpuDescriptorHandle);
         commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::OutputViewSlot, m_raytracingOutputResourceUAVGpuDescriptor);
     };
