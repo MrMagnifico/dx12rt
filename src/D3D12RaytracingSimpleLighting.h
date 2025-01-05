@@ -16,6 +16,11 @@
 #include "utils/LoadScene.h"
 #include "utils/StepTimer.h"
 
+enum ConstantBufferSlots {
+    Scene = 0,
+    ConstantBufferSlotsCount
+};
+
 
 class D3D12RaytracingSimpleLighting : public DXSample
 {
@@ -78,9 +83,11 @@ private:
     D3DBuffer m_materialsBuffer;
     D3DBuffer m_pointLightsBuffer;
 
-    // Acceleration structure
+    // Acceleration structures
     ComPtr<ID3D12Resource> m_bottomLevelAccelerationStructure;
     ComPtr<ID3D12Resource> m_topLevelAccelerationStructure;
+    D3D12_CPU_DESCRIPTOR_HANDLE m_tlasCpuDescriptorHandle;
+    D3D12_GPU_DESCRIPTOR_HANDLE m_tlasGpuDescriptorHandle;
 
     // Raytracing output
     ComPtr<ID3D12Resource> m_raytracingOutput;

@@ -25,13 +25,12 @@ typedef INT32 MaterialIndex;
 enum DescriptorHeapSlots {
     OutputRenderTarget = 0,
     TopLevelAccelerationStructure,
-    SceneCB,
     PointLightsBuffer,
     MaterialsBuffer,
     MaterialIndexBuffer,
     IndexBuffer,
     VertexBuffer,
-    Count
+    DescriptorHeapSlotsCount
 };
 
 struct SceneConstantBuffer

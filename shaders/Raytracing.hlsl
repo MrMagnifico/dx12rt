@@ -15,15 +15,18 @@
 #include "../src/hlsl/RaytracingHlslCompat.h"
 #include "Materials.hlsl"
 
-RaytracingAccelerationStructure Scene : register(t0, space0);
-
-static RWTexture2D<float4> RenderTarget         = ResourceDescriptorHeap[DescriptorHeapSlots::OutputRenderTarget];
+// Bindless resources
+// Buffers
 static StructuredBuffer<PointLight> PointLights = ResourceDescriptorHeap[DescriptorHeapSlots::PointLightsBuffer];
 static StructuredBuffer<MaterialPBR> Materials  = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialsBuffer];
 static ByteAddressBuffer MaterialIndices        = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialIndexBuffer];
 static ByteAddressBuffer Indices                = ResourceDescriptorHeap[DescriptorHeapSlots::IndexBuffer];
 static StructuredBuffer<Vertex> Vertices        = ResourceDescriptorHeap[DescriptorHeapSlots::VertexBuffer];
+// Others
+static RaytracingAccelerationStructure Scene    = ResourceDescriptorHeap[DescriptorHeapSlots::TopLevelAccelerationStructure];
+static RWTexture2D<float4> RenderTarget         = ResourceDescriptorHeap[DescriptorHeapSlots::OutputRenderTarget];
 
+// Constant buffers
 ConstantBuffer<SceneConstantBuffer> g_sceneCB : register(b0);
 
 struct RayPayload {

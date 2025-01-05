@@ -195,23 +195,8 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
     // Global Root Signature
     // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     {
-        CD3DX12_DESCRIPTOR_RANGE ranges[6]; // Perfomance TIP: Order from most frequent to least frequent.
-        ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);  // 1 output texture
-        ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);  // 1 point lights buffer
-        ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);  // 1 materials buffer
-        ranges[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);  // 1 material indices buffer
-        ranges[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);  // 1 index buffer.
-        ranges[5].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);  // 1 vertex buffer.
-
-        CD3DX12_ROOT_PARAMETER rootParameters[DescriptorHeapSlots::Count];
-        rootParameters[DescriptorHeapSlots::OutputRenderTarget].InitAsDescriptorTable(1, &ranges[0]);
-        rootParameters[DescriptorHeapSlots::TopLevelAccelerationStructure].InitAsShaderResourceView(0);
-        rootParameters[DescriptorHeapSlots::SceneCB].InitAsConstantBufferView(0);
-        rootParameters[DescriptorHeapSlots::PointLightsBuffer].InitAsDescriptorTable(1, &ranges[1]);
-        rootParameters[DescriptorHeapSlots::MaterialsBuffer].InitAsDescriptorTable(1, &ranges[2]);
-        rootParameters[DescriptorHeapSlots::MaterialIndexBuffer].InitAsDescriptorTable(1, &ranges[3]);
-        rootParameters[DescriptorHeapSlots::IndexBuffer].InitAsDescriptorTable(1, &ranges[4]);
-        rootParameters[DescriptorHeapSlots::VertexBuffer].InitAsDescriptorTable(1, &ranges[5]);
+        CD3DX12_ROOT_PARAMETER rootParameters[ConstantBufferSlots::ConstantBufferSlotsCount];
+        rootParameters[ConstantBufferSlots::Scene].InitAsConstantBufferView(0);
         CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters, 0U, nullptr, D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED);
         SerializeAndCreateVersionedRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
     }
@@ -324,7 +309,7 @@ void D3D12RaytracingSimpleLighting::CreateDescriptorHeap()
     auto device = m_deviceResources->GetD3DDevice();
 
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    descriptorHeapDesc.NumDescriptors = 69; // Should be enough for all the descriptors we can possibly need 
+    descriptorHeapDesc.NumDescriptors = DescriptorHeapSlots::DescriptorHeapSlotsCount;
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     descriptorHeapDesc.NodeMask = 0;
@@ -427,6 +412,16 @@ void D3D12RaytracingSimpleLighting::BuildAccelerationStructures()
         
         AllocateUAVBuffer(device, bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes, &m_bottomLevelAccelerationStructure, initialResourceState, L"BottomLevelAccelerationStructure");
         AllocateUAVBuffer(device, topLevelPrebuildInfo.ResultDataMaxSizeInBytes, &m_topLevelAccelerationStructure, initialResourceState, L"TopLevelAccelerationStructure");
+
+        // Create an SRV for the TLAS
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.RaytracingAccelerationStructure.Location = m_topLevelAccelerationStructure->GetGPUVirtualAddress();
+        UINT descriptorIndex = AllocateDescriptor(&m_tlasCpuDescriptorHandle, DescriptorHeapSlots::TopLevelAccelerationStructure);
+        device->CreateShaderResourceView(nullptr, &srvDesc, m_tlasCpuDescriptorHandle);
+        m_tlasGpuDescriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), descriptorIndex, m_descriptorSize);
     }
     
     // Create an instance desc for the bottom-level acceleration structure.
@@ -569,7 +564,7 @@ void D3D12RaytracingSimpleLighting::DoRaytracing()
     auto commandList    = m_deviceResources->GetCommandList();
     auto frameIndex     = m_deviceResources->GetCurrentFrameIndex();
     
-    auto DispatchRays = [&](auto* commandList, auto* stateObject, auto* dispatchDesc)
+    auto DispatchRays = [&](ID3D12GraphicsCommandList5* commandList, ID3D12StateObject* stateObject, D3D12_DISPATCH_RAYS_DESC* dispatchDesc)
     {
         // Since each shader table has only one shader record, the stride is same as the size.
         dispatchDesc->HitGroupTable.StartAddress = m_hitGroupShaderTable->GetGPUVirtualAddress();
@@ -591,14 +586,13 @@ void D3D12RaytracingSimpleLighting::DoRaytracing()
     commandList->SetDescriptorHeaps(1, m_descriptorHeap.GetAddressOf());
     commandList->SetComputeRootSignature(m_raytracingGlobalRootSignature.Get());
 
-    // Copy the updated scene constant buffer to GPU.
+    // Copy the updated scene constant buffer to GPU and bind it
     memcpy(&m_mappedConstantData[frameIndex].constants, &m_sceneCB[frameIndex], sizeof(m_sceneCB[frameIndex]));
     auto cbGpuAddress = m_perFrameConstants->GetGPUVirtualAddress() + frameIndex * sizeof(m_mappedConstantData[0]);
-    commandList->SetComputeRootConstantBufferView(DescriptorHeapSlots::SceneCB, cbGpuAddress);
+    commandList->SetComputeRootConstantBufferView(ConstantBufferSlots::Scene, cbGpuAddress);
    
-    // Bind the acceleration structure and dispatch rays.
+    // Dispatch rays.
     D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
-    commandList->SetComputeRootShaderResourceView(DescriptorHeapSlots::TopLevelAccelerationStructure, m_topLevelAccelerationStructure->GetGPUVirtualAddress());
     DispatchRays(m_dxrCommandList.Get(), m_dxrStateObject.Get(), &dispatchDesc);
 }
 
