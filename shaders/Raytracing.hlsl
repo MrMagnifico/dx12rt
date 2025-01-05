@@ -12,7 +12,7 @@
 #ifndef RAYTRACING_HLSL
 #define RAYTRACING_HLSL
 
-#include "hlsl/RaytracingHlslCompat.h"
+#include "../src/hlsl/RaytracingHlslCompat.h"
 #include "Materials.hlsl"
 
 RaytracingAccelerationStructure Scene : register(t0, space0);

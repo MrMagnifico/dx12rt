@@ -1,0 +1,5 @@
+{
+    "slang.predefinedMacros": [
+        "HLSL=1"
+    ]
+}

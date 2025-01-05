@@ -97,10 +97,10 @@
     </CustomBuild>
     <FxCompile>
       <EntryPointName />
-      <AdditionalIncludeDirectories>$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableOptimizations>true</DisableOptimizations>
       <ShaderType>Library</ShaderType>
-      <ShaderModel>6.7</ShaderModel>
+      <ShaderModel>6.6</ShaderModel>
       <PreprocessorDefinitions>HLSL</PreprocessorDefinitions>
     </FxCompile>
     <PostBuildEvent>
@@ -157,8 +157,8 @@
     <FxCompile>
       <EntryPointName />
       <ShaderType>Library</ShaderType>
-      <ShaderModel>6.7</ShaderModel>
-      <AdditionalIncludeDirectories>$(SolutionDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ShaderModel>6.6</ShaderModel>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableDebuggingInformation>false</EnableDebuggingInformation>
       <PreprocessorDefinitions>HLSL</PreprocessorDefinitions>
     </FxCompile>
@@ -220,6 +220,8 @@
       <VariableName>g_p%(Filename)</VariableName>
       <HeaderFileOutput>$(IntDir)CompiledShaders\%(Filename).hlsl.h</HeaderFileOutput>
       <AdditionalOptions>/Zpr %(AdditionalOptions)</AdditionalOptions>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.6</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.6</ShaderModel>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
