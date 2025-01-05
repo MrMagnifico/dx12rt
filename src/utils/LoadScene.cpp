@@ -74,9 +74,10 @@ LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
 
         // Compute roughness as a weighted average of specular components
         float specular_normalizing_factor   = max(material.specular[0] + material.specular[1] + material.specular[2], 0.001f);
-        pbr.roughness                       = (material.specular[0] / specular_normalizing_factor) * material.specular[0] +
+        float shininess                     = (material.specular[0] / specular_normalizing_factor) * material.specular[0] +
                                               (material.specular[1] / specular_normalizing_factor) * material.specular[1] + 
                                               (material.specular[2] / specular_normalizing_factor) * material.specular[2];
+        pbr.roughness = 1.0f - shininess;
 
         // Use a constant default metallic
         pbr.metallic = 0.25f;
