@@ -16,18 +16,6 @@
 #include "utils/LoadScene.h"
 #include "utils/StepTimer.h"
 
-namespace GlobalRootSignatureParams {
-    enum Value {
-        OutputViewSlot = 0,
-        AccelerationStructureSlot,
-        SceneConstantSlot,
-        PointLightsBufferSlot,
-        MaterialsSlot,
-        MaterialIndicesSlot,
-        VertexBuffersSlot,
-        Count 
-    };
-}
 
 class D3D12RaytracingSimpleLighting : public DXSample
 {
@@ -125,7 +113,7 @@ private:
     void ReleaseDeviceDependentResources();
     void ReleaseWindowSizeDependentResources();
     void CreateRaytracingInterfaces();
-    void SerializeAndCreateRaytracingRootSignature(D3D12_ROOT_SIGNATURE_DESC& desc, ComPtr<ID3D12RootSignature>* rootSig);
+    void SerializeAndCreateVersionedRootSignature(D3D12_VERSIONED_ROOT_SIGNATURE_DESC& desc, ComPtr<ID3D12RootSignature>* rootSig);
     void CreateRootSignatures();
     void CreateRaytracingPipelineStateObject();
     void CreateDescriptorHeap();
@@ -139,5 +127,5 @@ private:
     void CopyRaytracingOutputToBackbuffer();
     void CalculateFrameStats();
     UINT AllocateDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE* cpuDescriptor, UINT descriptorIndexToUse = UINT_MAX);
-    UINT CreateBufferSRV(D3DBuffer* buffer, UINT numElements, UINT elementSize);
+    UINT CreateBufferSRV(D3DBuffer* buffer, UINT numElements, UINT elementSize, UINT descriptorIndexToUse = UINT_MAX);
 };

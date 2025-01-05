@@ -178,13 +178,13 @@ void D3D12RaytracingSimpleLighting::CreateDeviceDependentResources()
     CreateRaytracingOutputResource();
 }
 
-void D3D12RaytracingSimpleLighting::SerializeAndCreateRaytracingRootSignature(D3D12_ROOT_SIGNATURE_DESC& desc, ComPtr<ID3D12RootSignature>* rootSig)
+void D3D12RaytracingSimpleLighting::SerializeAndCreateVersionedRootSignature(D3D12_VERSIONED_ROOT_SIGNATURE_DESC& desc, ComPtr<ID3D12RootSignature>* rootSig)
 {
     auto device = m_deviceResources->GetD3DDevice();
     ComPtr<ID3DBlob> blob;
     ComPtr<ID3DBlob> error;
 
-    ThrowIfFailed(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error), error ? static_cast<wchar_t*>(error->GetBufferPointer()) : nullptr);
+    ThrowIfFailed(D3D12SerializeVersionedRootSignature(&desc, &blob, &error), error ? static_cast<wchar_t*>(error->GetBufferPointer()) : nullptr);
     ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
 }
 
@@ -200,18 +200,20 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
         ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);  // 1 point lights buffer
         ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);  // 1 materials buffer
         ranges[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);  // 1 material indices buffer
-        ranges[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 4);  // 2 static index and vertex buffers.
+        ranges[4].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);  // 1 index buffer.
+        ranges[5].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);  // 1 vertex buffer.
 
-        CD3DX12_ROOT_PARAMETER rootParameters[GlobalRootSignatureParams::Count];
-        rootParameters[GlobalRootSignatureParams::OutputViewSlot].InitAsDescriptorTable(1, &ranges[0]);
-        rootParameters[GlobalRootSignatureParams::AccelerationStructureSlot].InitAsShaderResourceView(0);
-        rootParameters[GlobalRootSignatureParams::SceneConstantSlot].InitAsConstantBufferView(0);
-        rootParameters[GlobalRootSignatureParams::PointLightsBufferSlot].InitAsDescriptorTable(1, &ranges[1]);
-        rootParameters[GlobalRootSignatureParams::MaterialsSlot].InitAsDescriptorTable(1, &ranges[2]);
-        rootParameters[GlobalRootSignatureParams::MaterialIndicesSlot].InitAsDescriptorTable(1, &ranges[3]);
-        rootParameters[GlobalRootSignatureParams::VertexBuffersSlot].InitAsDescriptorTable(1, &ranges[4]);
-        CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
-        SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
+        CD3DX12_ROOT_PARAMETER rootParameters[DescriptorHeapSlots::Count];
+        rootParameters[DescriptorHeapSlots::OutputRenderTarget].InitAsDescriptorTable(1, &ranges[0]);
+        rootParameters[DescriptorHeapSlots::TopLevelAccelerationStructure].InitAsShaderResourceView(0);
+        rootParameters[DescriptorHeapSlots::SceneCB].InitAsConstantBufferView(0);
+        rootParameters[DescriptorHeapSlots::PointLightsBuffer].InitAsDescriptorTable(1, &ranges[1]);
+        rootParameters[DescriptorHeapSlots::MaterialsBuffer].InitAsDescriptorTable(1, &ranges[2]);
+        rootParameters[DescriptorHeapSlots::MaterialIndexBuffer].InitAsDescriptorTable(1, &ranges[3]);
+        rootParameters[DescriptorHeapSlots::IndexBuffer].InitAsDescriptorTable(1, &ranges[4]);
+        rootParameters[DescriptorHeapSlots::VertexBuffer].InitAsDescriptorTable(1, &ranges[5]);
+        CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters, 0U, nullptr, D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED);
+        SerializeAndCreateVersionedRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
     }
 }
 
@@ -341,10 +343,8 @@ void D3D12RaytracingSimpleLighting::BuildGeometry(LoadScene::LoadedObj loaded_ob
     AllocateUploadBuffer(device, loaded_obj.vertices.data(), loaded_obj.vertices.size() * sizeof(Vertex), &m_vertexBuffer.resource);
 
     // Vertex buffer is passed to the shader along with index buffer as a descriptor table.
-    // Vertex buffer descriptor must follow index buffer descriptor in the descriptor heap.
-    UINT descriptorIndexIB = CreateBufferSRV(&m_indexBuffer, static_cast<UINT>(loaded_obj.indices.size()), 0);
-    UINT descriptorIndexVB = CreateBufferSRV(&m_vertexBuffer, static_cast<UINT>(loaded_obj.vertices.size()), sizeof(Vertex));
-    ThrowIfFalse(descriptorIndexVB == descriptorIndexIB + 1, L"Vertex Buffer descriptor index must follow that of Index Buffer descriptor index!");
+    CreateBufferSRV(&m_indexBuffer, static_cast<UINT>(loaded_obj.indices.size()), 0, DescriptorHeapSlots::IndexBuffer);
+    CreateBufferSRV(&m_vertexBuffer, static_cast<UINT>(loaded_obj.vertices.size()), sizeof(Vertex), DescriptorHeapSlots::VertexBuffer);
 }
 
 void D3D12RaytracingSimpleLighting::BuildMaterials(LoadScene::LoadedObj loaded_obj)
@@ -354,8 +354,8 @@ void D3D12RaytracingSimpleLighting::BuildMaterials(LoadScene::LoadedObj loaded_o
     AllocateUploadBuffer(device, loaded_obj.material_indices.data(), loaded_obj.material_indices.size() * sizeof(MaterialIndex), &m_materialIndicesBuffer.resource);
     AllocateUploadBuffer(device, loaded_obj.materials.data(), loaded_obj.materials.size() * sizeof(MaterialPBR), &m_materialsBuffer.resource);
 
-    CreateBufferSRV(&m_materialIndicesBuffer, static_cast<UINT>(loaded_obj.material_indices.size()), 0);
-    CreateBufferSRV(&m_materialsBuffer, static_cast<UINT>(loaded_obj.materials.size()), sizeof(MaterialPBR));
+    CreateBufferSRV(&m_materialIndicesBuffer, static_cast<UINT>(loaded_obj.material_indices.size()), 0, DescriptorHeapSlots::MaterialIndexBuffer);
+    CreateBufferSRV(&m_materialsBuffer, static_cast<UINT>(loaded_obj.materials.size()), sizeof(MaterialPBR), DescriptorHeapSlots::MaterialsBuffer);
 }
 
 // Build acceleration structures needed for raytracing.
@@ -486,7 +486,7 @@ void D3D12RaytracingSimpleLighting::BuildLightBuffers()
     pointLights.push_back(p1);
 
     AllocateUploadBuffer(device, pointLights.data(), pointLights.size() * sizeof(PointLight), &m_pointLightsBuffer.resource);
-    CreateBufferSRV(&m_pointLightsBuffer, static_cast<UINT>(pointLights.size()), sizeof(PointLight));
+    CreateBufferSRV(&m_pointLightsBuffer, static_cast<UINT>(pointLights.size()), sizeof(PointLight), DescriptorHeapSlots::PointLightsBuffer);
 }
 
 // Build shader tables.
@@ -566,8 +566,8 @@ void D3D12RaytracingSimpleLighting::OnUpdate()
 
 void D3D12RaytracingSimpleLighting::DoRaytracing()
 {
-    auto commandList = m_deviceResources->GetCommandList();
-    auto frameIndex = m_deviceResources->GetCurrentFrameIndex();
+    auto commandList    = m_deviceResources->GetCommandList();
+    auto frameIndex     = m_deviceResources->GetCurrentFrameIndex();
     
     auto DispatchRays = [&](auto* commandList, auto* stateObject, auto* dispatchDesc)
     {
@@ -587,28 +587,18 @@ void D3D12RaytracingSimpleLighting::DoRaytracing()
         commandList->DispatchRays(dispatchDesc);
     };
 
-    auto SetCommonPipelineState = [&](auto* descriptorSetCommandList)
-    {
-        descriptorSetCommandList->SetDescriptorHeaps(1, m_descriptorHeap.GetAddressOf());
-        // Set index and successive vertex buffer decriptor tables
-        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::VertexBuffersSlot, m_indexBuffer.gpuDescriptorHandle);
-        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::MaterialIndicesSlot, m_materialIndicesBuffer.gpuDescriptorHandle);
-        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::MaterialsSlot, m_materialsBuffer.gpuDescriptorHandle);
-        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::PointLightsBufferSlot, m_pointLightsBuffer.gpuDescriptorHandle);
-        commandList->SetComputeRootDescriptorTable(GlobalRootSignatureParams::OutputViewSlot, m_raytracingOutputResourceUAVGpuDescriptor);
-    };
-
+    // Bind the descriptor heap and root signature
+    commandList->SetDescriptorHeaps(1, m_descriptorHeap.GetAddressOf());
     commandList->SetComputeRootSignature(m_raytracingGlobalRootSignature.Get());
 
     // Copy the updated scene constant buffer to GPU.
     memcpy(&m_mappedConstantData[frameIndex].constants, &m_sceneCB[frameIndex], sizeof(m_sceneCB[frameIndex]));
     auto cbGpuAddress = m_perFrameConstants->GetGPUVirtualAddress() + frameIndex * sizeof(m_mappedConstantData[0]);
-    commandList->SetComputeRootConstantBufferView(GlobalRootSignatureParams::SceneConstantSlot, cbGpuAddress);
+    commandList->SetComputeRootConstantBufferView(DescriptorHeapSlots::SceneCB, cbGpuAddress);
    
-    // Bind the heaps, acceleration structure and dispatch rays.
+    // Bind the acceleration structure and dispatch rays.
     D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
-    SetCommonPipelineState(commandList);
-    commandList->SetComputeRootShaderResourceView(GlobalRootSignatureParams::AccelerationStructureSlot, m_topLevelAccelerationStructure->GetGPUVirtualAddress());
+    commandList->SetComputeRootShaderResourceView(DescriptorHeapSlots::TopLevelAccelerationStructure, m_topLevelAccelerationStructure->GetGPUVirtualAddress());
     DispatchRays(m_dxrCommandList.Get(), m_dxrStateObject.Get(), &dispatchDesc);
 }
 
@@ -781,7 +771,7 @@ UINT D3D12RaytracingSimpleLighting::AllocateDescriptor(D3D12_CPU_DESCRIPTOR_HAND
 }
 
 // Create SRV for a buffer.
-UINT D3D12RaytracingSimpleLighting::CreateBufferSRV(D3DBuffer* buffer, UINT numElements, UINT elementSize)
+UINT D3D12RaytracingSimpleLighting::CreateBufferSRV(D3DBuffer* buffer, UINT numElements, UINT elementSize, UINT descriptorIndexToUse)
 {
     auto device = m_deviceResources->GetD3DDevice();
 
@@ -802,7 +792,7 @@ UINT D3D12RaytracingSimpleLighting::CreateBufferSRV(D3DBuffer* buffer, UINT numE
         srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
         srvDesc.Buffer.StructureByteStride = elementSize;
     }
-    UINT descriptorIndex = AllocateDescriptor(&buffer->cpuDescriptorHandle);
+    UINT descriptorIndex = AllocateDescriptor(&buffer->cpuDescriptorHandle, descriptorIndexToUse);
     device->CreateShaderResourceView(buffer->resource.Get(), &srvDesc, buffer->cpuDescriptorHandle);
     buffer->gpuDescriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), descriptorIndex, m_descriptorSize);
     return descriptorIndex;

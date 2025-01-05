@@ -22,6 +22,18 @@ typedef UINT32 Index;
 typedef INT32 MaterialIndex;
 #endif
 
+enum DescriptorHeapSlots {
+    OutputRenderTarget = 0,
+    TopLevelAccelerationStructure,
+    SceneCB,
+    PointLightsBuffer,
+    MaterialsBuffer,
+    MaterialIndexBuffer,
+    IndexBuffer,
+    VertexBuffer,
+    Count
+};
+
 struct SceneConstantBuffer
 {
     // Camera

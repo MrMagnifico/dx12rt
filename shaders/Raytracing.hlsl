@@ -16,12 +16,13 @@
 #include "Materials.hlsl"
 
 RaytracingAccelerationStructure Scene : register(t0, space0);
-RWTexture2D<float4> RenderTarget : register(u0);
-StructuredBuffer<PointLight> PointLights : register(t1, space0);
-StructuredBuffer<MaterialPBR> Materials : register(t2, space0);
-ByteAddressBuffer MaterialIndices: register(t3, space0);
-ByteAddressBuffer Indices : register(t4, space0);
-StructuredBuffer<Vertex> Vertices : register(t5, space0);
+
+static RWTexture2D<float4> RenderTarget         = ResourceDescriptorHeap[DescriptorHeapSlots::OutputRenderTarget];
+static StructuredBuffer<PointLight> PointLights = ResourceDescriptorHeap[DescriptorHeapSlots::PointLightsBuffer];
+static StructuredBuffer<MaterialPBR> Materials  = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialsBuffer];
+static ByteAddressBuffer MaterialIndices        = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialIndexBuffer];
+static ByteAddressBuffer Indices                = ResourceDescriptorHeap[DescriptorHeapSlots::IndexBuffer];
+static StructuredBuffer<Vertex> Vertices        = ResourceDescriptorHeap[DescriptorHeapSlots::VertexBuffer];
 
 ConstantBuffer<SceneConstantBuffer> g_sceneCB : register(b0);
 
