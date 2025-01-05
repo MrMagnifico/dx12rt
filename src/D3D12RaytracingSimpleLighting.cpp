@@ -80,10 +80,11 @@ void D3D12RaytracingSimpleLighting::InitializeScene()
     auto frameIndex = m_deviceResources->GetCurrentFrameIndex();
 
     // Setup materials.
-    // TODO: Get these from a GUI
+    // TODO: Get these from a GUI and update them every frame
     {
-        m_materialCB.defaultAlbedo              = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-        m_materialCB.defaultMetalAndRoughness   = XMFLOAT4(0.1f, 0.8f, 0.0f, 0.0f);
+        UINT frameIndex                                 = m_deviceResources->GetCurrentFrameIndex();
+        m_sceneCB[frameIndex].defaultAlbedo             = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        m_sceneCB[frameIndex].defaultMetalAndRoughness  = XMFLOAT4(0.1f, 0.8f, 0.0f, 0.0f);
     }
 
     // Setup camera.
@@ -194,7 +195,7 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
     // Global Root Signature
     // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     {
-        CD3DX12_DESCRIPTOR_RANGE ranges[5]; // Perfomance TIP: Order from most frequent to least frequent.
+        CD3DX12_DESCRIPTOR_RANGE ranges[6]; // Perfomance TIP: Order from most frequent to least frequent.
         ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);  // 1 output texture
         ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);  // 1 point lights buffer
         ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);  // 1 materials buffer
@@ -212,16 +213,6 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
         CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
     }
-
-    // Local Root Signature
-    // This is a root signature that enables a shader to have unique arguments that come from shader tables.
-    {
-        CD3DX12_ROOT_PARAMETER rootParameters[LocalRootSignatureParams::Count];
-        rootParameters[LocalRootSignatureParams::CubeConstantSlot].InitAsConstants(SizeOfInUint32(m_materialCB), 1);
-        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
-        localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
-        SerializeAndCreateRaytracingRootSignature(localRootSignatureDesc, &m_raytracingLocalRootSignature);
-    }
 }
 
 // Create raytracing device and command list.
@@ -232,23 +223,6 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingInterfaces()
 
     ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&m_dxrDevice)), L"Couldn't get DirectX Raytracing interface for the device.\n");
     ThrowIfFailed(commandList->QueryInterface(IID_PPV_ARGS(&m_dxrCommandList)), L"Couldn't get DirectX Raytracing interface for the command list.\n");
-}
-
-// Local root signature and shader association
-// This is a root signature that enables a shader to have unique arguments that come from shader tables.
-void D3D12RaytracingSimpleLighting::CreateLocalRootSignatureSubobjects(CD3DX12_STATE_OBJECT_DESC* raytracingPipeline)
-{
-    // Ray gen and miss shaders in this sample are not using a local root signature and thus one is not associated with them.
-
-    // Local root signature to be used in a hit group.
-    auto localRootSignature = raytracingPipeline->CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
-    localRootSignature->SetRootSignature(m_raytracingLocalRootSignature.Get());
-    // Define explicit shader association for the local root signature. 
-    {
-        auto rootSignatureAssociation = raytracingPipeline->CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
-        rootSignatureAssociation->SetSubobjectToAssociate(*localRootSignature);
-        rootSignatureAssociation->AddExport(c_hitGroupName);
-    }
 }
 
 // Create a raytracing pipeline state object (RTPSO).
@@ -300,10 +274,6 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingPipelineStateObject()
     UINT attributeSize  = sizeof(XMFLOAT2); // float2 barycentrics
     shaderConfig->Config(payloadSize, attributeSize);
 
-    // Local root signature and shader association
-    // This is a root signature that enables a shader to have unique arguments that come from shader tables.
-    CreateLocalRootSignatureSubobjects(&raytracingPipeline);
-
     // Global root signature
     // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     auto globalRootSignature = raytracingPipeline.CreateSubobject<CD3DX12_GLOBAL_ROOT_SIGNATURE_SUBOBJECT>();
@@ -352,13 +322,7 @@ void D3D12RaytracingSimpleLighting::CreateDescriptorHeap()
     auto device = m_deviceResources->GetD3DDevice();
 
     D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
-    // Allocate a heap for 6 descriptors:
-    // 1 - raytracing output texture SRV
-    // 1 - point light sources SRV
-    // 1 - materials SRV
-    // 1 - material indices SRV
-    // 2 - vertex and index buffer SRVs
-    descriptorHeapDesc.NumDescriptors = 6; 
+    descriptorHeapDesc.NumDescriptors = 69; // Should be enough for all the descriptors we can possibly need 
     descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     descriptorHeapDesc.NodeMask = 0;
@@ -571,15 +535,10 @@ void D3D12RaytracingSimpleLighting::BuildShaderTables()
 
     // Hit group shader table
     {
-        struct RootArguments {
-            MaterialConstantBuffer cb;
-        } rootArguments;
-        rootArguments.cb = m_materialCB;
-
         UINT numShaderRecords = 1;
-        UINT shaderRecordSize = shaderIdentifierSize + sizeof(rootArguments);
+        UINT shaderRecordSize = shaderIdentifierSize;
         ShaderTable hitGroupShaderTable(device, numShaderRecords, shaderRecordSize, L"HitGroupShaderTable");
-        hitGroupShaderTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize, &rootArguments, sizeof(rootArguments)));
+        hitGroupShaderTable.push_back(ShaderRecord(hitGroupShaderIdentifier, shaderIdentifierSize));
         m_hitGroupShaderTable = hitGroupShaderTable.GetResource();
     }
 }
@@ -696,7 +655,6 @@ void D3D12RaytracingSimpleLighting::ReleaseWindowSizeDependentResources()
 void D3D12RaytracingSimpleLighting::ReleaseDeviceDependentResources()
 {
     m_raytracingGlobalRootSignature.Reset();
-    m_raytracingLocalRootSignature.Reset();
 
     m_dxrDevice.Reset();
     m_dxrCommandList.Reset();

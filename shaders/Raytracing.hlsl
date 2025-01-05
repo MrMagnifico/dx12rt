@@ -24,7 +24,6 @@ ByteAddressBuffer Indices : register(t4, space0);
 StructuredBuffer<Vertex> Vertices : register(t5, space0);
 
 ConstantBuffer<SceneConstantBuffer> g_sceneCB : register(b0);
-ConstantBuffer<MaterialConstantBuffer> g_materialCB : register(b1);
 
 struct RayPayload {
     // Input
@@ -166,9 +165,9 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
         MaterialPBR triangleMaterial;
         if (materialIndex == -1) {
             // No material corresponding to this triangle, use default material properties
-            triangleMaterial.albedo     = g_materialCB.defaultAlbedo.rgb;
-            triangleMaterial.metallic   = g_materialCB.defaultMetalAndRoughness.r;
-            triangleMaterial.roughness  = g_materialCB.defaultMetalAndRoughness.g;
+            triangleMaterial.albedo     = g_sceneCB.defaultAlbedo.rgb;
+            triangleMaterial.metallic   = g_sceneCB.defaultMetalAndRoughness.r;
+            triangleMaterial.roughness  = g_sceneCB.defaultMetalAndRoughness.g;
         } else {
             triangleMaterial = Materials[materialIndex];
         }

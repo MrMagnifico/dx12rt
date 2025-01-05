@@ -29,13 +29,6 @@ namespace GlobalRootSignatureParams {
     };
 }
 
-namespace LocalRootSignatureParams {
-    enum Value {
-        CubeConstantSlot = 0,
-        Count 
-    };
-}
-
 class D3D12RaytracingSimpleLighting : public DXSample
 {
 public:
@@ -72,9 +65,8 @@ private:
     ComPtr<ID3D12GraphicsCommandList5> m_dxrCommandList;
     ComPtr<ID3D12StateObject> m_dxrStateObject;
 
-    // Root signatures
+    // Root signature
     ComPtr<ID3D12RootSignature> m_raytracingGlobalRootSignature;
-    ComPtr<ID3D12RootSignature> m_raytracingLocalRootSignature;
 
     // Descriptors
     ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
@@ -83,7 +75,6 @@ private:
     
     // Constant buffers
     SceneConstantBuffer m_sceneCB[FrameCount];
-    MaterialConstantBuffer m_materialCB;
 
     struct D3DBuffer
     {
@@ -136,7 +127,6 @@ private:
     void CreateRaytracingInterfaces();
     void SerializeAndCreateRaytracingRootSignature(D3D12_ROOT_SIGNATURE_DESC& desc, ComPtr<ID3D12RootSignature>* rootSig);
     void CreateRootSignatures();
-    void CreateLocalRootSignatureSubobjects(CD3DX12_STATE_OBJECT_DESC* raytracingPipeline);
     void CreateRaytracingPipelineStateObject();
     void CreateDescriptorHeap();
     void CreateRaytracingOutputResource();

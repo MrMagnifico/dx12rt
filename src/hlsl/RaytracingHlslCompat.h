@@ -24,12 +24,11 @@ typedef INT32 MaterialIndex;
 
 struct SceneConstantBuffer
 {
+    // Camera
     XMMATRIX projectionToWorld;
     XMVECTOR cameraPosition;
-};
 
-struct MaterialConstantBuffer
-{
+    // Default material
     XMFLOAT4 defaultAlbedo;             // Alpha channel is not used
     XMFLOAT4 defaultMetalAndRoughness;  // R channel encodes metal, G channel encodes roughness, rest is unused
 };
