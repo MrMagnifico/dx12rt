@@ -24,7 +24,6 @@ typedef INT32 MaterialIndex;
 
 enum DescriptorHeapSlots {
     OutputRenderTarget = 0,
-    TopLevelAccelerationStructure,
     PointLightsBuffer,
     MaterialsBuffer,
     IndexVertexMaterialBuffersBegin, // All slots as of this one are tuples of index, vertex, and material index buffers (i.e. ByteAddressBuffer followed by StructuredBuffer<Vertex> followed by ByteAddressBuffer) for each object/BLAS in the scene

@@ -94,7 +94,6 @@ private:
     // Raytracing output
     ComPtr<ID3D12Resource> m_raytracingOutput;
     D3D12_GPU_DESCRIPTOR_HANDLE m_raytracingOutputResourceUAVGpuDescriptor;
-    UINT m_raytracingOutputResourceUAVDescriptorHeapIndex;
 
     // Shader tables
     static const wchar_t* c_hitGroupName;

@@ -26,7 +26,6 @@ const wchar_t* D3D12RaytracingSimpleLighting::c_missShaderName = L"MyMissShader"
 
 D3D12RaytracingSimpleLighting::D3D12RaytracingSimpleLighting(UINT width, UINT height, std::wstring name) :
     DXSample(width, height, name),
-    m_raytracingOutputResourceUAVDescriptorHeapIndex(UINT_MAX),
     m_curRotationAngleRad(0.0f)
 {
     UpdateForSizeChange(width, height);
@@ -298,11 +297,11 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingOutputResource()
     NAME_D3D12_OBJECT(m_raytracingOutput);
 
     D3D12_CPU_DESCRIPTOR_HANDLE uavDescriptorHandle;
-    m_raytracingOutputResourceUAVDescriptorHeapIndex = AllocateDescriptor(&uavDescriptorHandle, m_raytracingOutputResourceUAVDescriptorHeapIndex);
+    AllocateDescriptor(&uavDescriptorHandle, DescriptorHeapSlots::OutputRenderTarget);
     D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
     UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
     device->CreateUnorderedAccessView(m_raytracingOutput.Get(), nullptr, &UAVDesc, uavDescriptorHandle);
-    m_raytracingOutputResourceUAVGpuDescriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), m_raytracingOutputResourceUAVDescriptorHeapIndex, m_descriptorSize);
+    m_raytracingOutputResourceUAVGpuDescriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), DescriptorHeapSlots::OutputRenderTarget, m_descriptorSize);
 }
 
 void D3D12RaytracingSimpleLighting::CreateDescriptorHeap()
@@ -726,7 +725,6 @@ void D3D12RaytracingSimpleLighting::ReleaseDeviceDependentResources()
 
     m_descriptorHeap.Reset();
     m_descriptorsAllocated = 0;
-    m_raytracingOutputResourceUAVDescriptorHeapIndex = UINT_MAX;
     m_pointLightsBuffer.resource.Reset();
     m_perFrameConstants.Reset();
     m_rayGenShaderTable.Reset();
@@ -739,7 +737,6 @@ void D3D12RaytracingSimpleLighting::ReleaseDeviceDependentResources()
         m_bottomLevelAccelerationStructures[i].Reset();
     }
     m_topLevelAccelerationStructure.Reset();
-
 }
 
 void D3D12RaytracingSimpleLighting::RecreateD3D()
