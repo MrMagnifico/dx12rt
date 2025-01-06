@@ -51,8 +51,8 @@ private:
         SceneConstantBuffer constants;
         uint8_t alignmentPadding[D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT];
     };
-    AlignedSceneConstantBuffer*  m_mappedConstantData;
-    ComPtr<ID3D12Resource>       m_perFrameConstants;
+    AlignedSceneConstantBuffer* m_mappedConstantData;
+    DX::D3DResource             m_perFrameConstants;
 
     // DirectX Raytracing (DXR) attributes
     ComPtr<ID3D12Device5> m_dxrDevice;
@@ -70,9 +70,8 @@ private:
     // Constant buffers
     SceneConstantBuffer m_sceneCB[FrameCount];
 
-    struct D3DBuffer
-    {
-        ComPtr<ID3D12Resource> resource;
+    struct D3DBuffer {
+        DX::D3DResource resource;
         D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptorHandle;
         D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle;
     };
@@ -86,13 +85,13 @@ private:
     D3DBuffer m_pointLightsBuffer;
 
     // Acceleration structures
-    std::vector<ComPtr<ID3D12Resource>> m_bottomLevelAccelerationStructures;
-    ComPtr<ID3D12Resource> m_topLevelAccelerationStructure;
+    std::vector<DX::D3DResource> m_bottomLevelAccelerationStructures;
+    DX::D3DResource m_topLevelAccelerationStructure;
     D3D12_CPU_DESCRIPTOR_HANDLE m_tlasCpuDescriptorHandle;
     D3D12_GPU_DESCRIPTOR_HANDLE m_tlasGpuDescriptorHandle;
 
     // Raytracing output
-    ComPtr<ID3D12Resource> m_raytracingOutput;
+    DX::D3DResource m_raytracingOutput;
     D3D12_GPU_DESCRIPTOR_HANDLE m_raytracingOutputResourceUAVGpuDescriptor;
 
     // Shader tables
@@ -100,9 +99,9 @@ private:
     static const wchar_t* c_raygenShaderName;
     static const wchar_t* c_closestHitShaderName;
     static const wchar_t* c_missShaderName;
-    ComPtr<ID3D12Resource> m_missShaderTable;
-    ComPtr<ID3D12Resource> m_hitGroupShaderTable;
-    ComPtr<ID3D12Resource> m_rayGenShaderTable;
+    DX::D3DResource m_missShaderTable;
+    DX::D3DResource m_hitGroupShaderTable;
+    DX::D3DResource m_rayGenShaderTable;
     
     // Application state
     StepTimer m_timer;

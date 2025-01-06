@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "../d3d12ma/D3D12MemAlloc.h"
+
 // Note that while ComPtr is used to manage the lifetime of resources on the CPU,
 // it has no understanding of the lifetime of resources on the GPU. Apps must account
 // for the GPU lifetime of resources to avoid destroying objects that may still be
@@ -216,9 +218,11 @@ void ResetUniquePtrArray(T* uniquePtrArray)
 class GpuUploadBuffer
 {
 public:
+    ComPtr<D3D12MA::Allocation> GetAllocation() { return m_allocation; }
     ComPtr<ID3D12Resource> GetResource() { return m_resource; }
 
 protected:
+    ComPtr<D3D12MA::Allocation> m_allocation;
     ComPtr<ID3D12Resource> m_resource;
 
     GpuUploadBuffer() {}
@@ -230,17 +234,18 @@ protected:
         }
     }
 
-    void Allocate(ID3D12Device* device, UINT bufferSize, LPCWSTR resourceName = nullptr)
+    void Allocate(ID3D12Device* device, D3D12MA::Allocator* allocator, UINT bufferSize, LPCWSTR resourceName = nullptr)
     {
-        auto uploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        D3D12MA::ALLOCATION_DESC allocationDesc = {};
+        allocationDesc.HeapType                 = D3D12_HEAP_TYPE_UPLOAD;
 
         auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
-        ThrowIfFailed(device->CreateCommittedResource(
-            &uploadHeapProperties,
-            D3D12_HEAP_FLAG_NONE,
+        ThrowIfFailed(allocator->CreateResource(
+            &allocationDesc,
             &bufferDesc,
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
+            &m_allocation,
             IID_PPV_ARGS(&m_resource)));
         m_resource->SetName(resourceName);
     }
