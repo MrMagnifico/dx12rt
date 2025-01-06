@@ -78,6 +78,7 @@ private:
     };
 
     // Scene data buffers
+    // The following vectors have an entry for each object/BLAS
     std::vector<D3DBuffer> m_indexBuffers;
     std::vector<D3DBuffer> m_vertexBuffers;
     std::vector<D3DBuffer> m_materialIndexBuffers;
