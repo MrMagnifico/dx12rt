@@ -15,18 +15,15 @@
 #include "../src/hlsl/RaytracingHlslCompat.h"
 #include "Materials.hlsl"
 
-// Bindless resources
+// Global bindless resources
 // Buffers
 static StructuredBuffer<PointLight> PointLights = ResourceDescriptorHeap[DescriptorHeapSlots::PointLightsBuffer];
 static StructuredBuffer<MaterialPBR> Materials  = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialsBuffer];
-static ByteAddressBuffer MaterialIndices        = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialIndexBuffer];
-static ByteAddressBuffer Indices                = ResourceDescriptorHeap[DescriptorHeapSlots::IndexBuffer];
-static StructuredBuffer<Vertex> Vertices        = ResourceDescriptorHeap[DescriptorHeapSlots::VertexBuffer];
 // Others
-static RaytracingAccelerationStructure Scene    = ResourceDescriptorHeap[DescriptorHeapSlots::TopLevelAccelerationStructure];
 static RWTexture2D<float4> RenderTarget         = ResourceDescriptorHeap[DescriptorHeapSlots::OutputRenderTarget];
 
-// Constant buffers
+// Non-bindless resources
+RaytracingAccelerationStructure Scene : register(t0, space0);
 ConstantBuffer<SceneConstantBuffer> g_sceneCB : register(b0);
 
 struct RayPayload {
@@ -69,9 +66,11 @@ inline void GenerateCameraRay(uint2 index, out float3 origin, out float3 directi
 float3 LightingPBR(float3 hitPosition, float3 cameraDirection, float3 normal,
                    MaterialPBR material, float3 F0,
                    float3 lightSamplePosition, float3 lightSampleColor) {
+    // Unit vectors used throughout the method
+    float3 L = normalize(lightSamplePosition - hitPosition);
+    float3 H = normalize(cameraDirection + L);
+    
     // Radiance and geometry terms
-    float3 L            = normalize(lightSamplePosition - hitPosition);
-    float3 H            = normalize(cameraDirection + L);
     float distance      = length(lightSamplePosition - hitPosition);
     float attenuation   = 1.0f / (distance * distance);
     float3 radiance     = lightSampleColor * attenuation;
@@ -154,18 +153,23 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
     if (payload.isShadowRay) {
         payload.hit = true;
     } else {
-
+        // Retrieve the index, vertex, and material index buffers of the instance we hit
+        uint object_srv_idx_base                    = DescriptorHeapSlots::IndexVertexMaterialBuffersBegin + (InstanceID() * 2U);
+        ByteAddressBuffer instanceIndices           = ResourceDescriptorHeap[object_srv_idx_base];
+        StructuredBuffer<Vertex> instanceVertices   = ResourceDescriptorHeap[object_srv_idx_base + 1];
+        ByteAddressBuffer instanceMaterialIndices   = ResourceDescriptorHeap[object_srv_idx_base + 2];
+        
         // Load up 3 32 bit indices for the triangle.
         static const uint indexSizeInBytes      = 4;
         static const uint indicesPerTriangle    = 3;
         static const uint triangleIndexStride   = indicesPerTriangle * indexSizeInBytes;
         const uint baseIndex                    = PrimitiveIndex() * triangleIndexStride;
-        const uint3 indices                     = Indices.Load3(baseIndex);
-        
+        const uint3 indices                     = instanceIndices.Load3(baseIndex);
+
         // Load the corrsponding material for the triangle (or the default material if this triangle does not have one).
         static const uint materialIndexSizeInBytes  = 4;
         const uint triangleIndex                    = PrimitiveIndex() * materialIndexSizeInBytes;
-        const int materialIndex                     = asint(MaterialIndices.Load(triangleIndex));
+        const int materialIndex                     = asint(instanceMaterialIndices.Load(triangleIndex));
         MaterialPBR triangleMaterial;
         if (materialIndex == -1) {
             // No material corresponding to this triangle, use default material properties
@@ -177,10 +181,10 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
         }
 
         // Retrieve corresponding vertex normals for the triangle vertices.
-        float3 vertexNormals[3] = { 
-            Vertices[indices[0]].normal, 
-            Vertices[indices[1]].normal, 
-            Vertices[indices[2]].normal 
+        float3 vertexNormals[3] = {
+            instanceVertices[indices[0]].normal,
+            instanceVertices[indices[1]].normal,
+            instanceVertices[indices[2]].normal 
         };
 
         // Compute the triangle's normal.

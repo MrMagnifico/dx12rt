@@ -3,15 +3,18 @@
 #include "../hlsl/RayTracingHlslCompat.h"
 #include "stdafx.h"
 
+using Indices			= std::vector<Index>;
+using Vertices			= std::vector<Vertex>;
+using MaterialIndices	= std::vector<Index>;
 
 namespace LoadScene {
 struct LoadedObj {
 	// Geometry
-	std::vector<Vertex> vertices;
-	std::vector<Index> indices;
+	std::vector<Indices> indices_per_object;
+	std::vector<Vertices> vertices_per_object;
+	std::vector<MaterialIndices> material_indices_per_object; // Index into materials buffer on a per-triangle basis
 
 	// Materials
-	std::vector<MaterialIndex> material_indices; // Index into material buffer per triangle
 	std::vector<MaterialPBR> materials;
 };
 

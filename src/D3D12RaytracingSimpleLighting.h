@@ -16,9 +16,10 @@
 #include "utils/LoadScene.h"
 #include "utils/StepTimer.h"
 
-enum ConstantBufferSlots {
-    Scene = 0,
-    ConstantBufferSlotsCount
+enum BoundResourceSlots {
+    TLAS = 0,
+    SceneCB,
+    BoundResourceSlotsCount
 };
 
 
@@ -77,14 +78,14 @@ private:
     };
 
     // Scene data buffers
-    D3DBuffer m_indexBuffer;
-    D3DBuffer m_vertexBuffer;
-    D3DBuffer m_materialIndicesBuffer;
+    std::vector<D3DBuffer> m_indexBuffers;
+    std::vector<D3DBuffer> m_vertexBuffers;
+    std::vector<D3DBuffer> m_materialIndexBuffers;
     D3DBuffer m_materialsBuffer;
     D3DBuffer m_pointLightsBuffer;
 
     // Acceleration structures
-    ComPtr<ID3D12Resource> m_bottomLevelAccelerationStructure;
+    std::vector<ComPtr<ID3D12Resource>> m_bottomLevelAccelerationStructures;
     ComPtr<ID3D12Resource> m_topLevelAccelerationStructure;
     D3D12_CPU_DESCRIPTOR_HANDLE m_tlasCpuDescriptorHandle;
     D3D12_GPU_DESCRIPTOR_HANDLE m_tlasGpuDescriptorHandle;
