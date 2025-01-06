@@ -29,25 +29,27 @@ LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
     // Loop over shapes. We group the faces by their material so we can create separate 'objects' out of them in the returned struct
     std::map<int, Indices> indices_by_material;
     std::map<int, Vertices> vertices_by_material;
+    std::map<int, size_t> material_index_offset;
     for (size_t s = 0; s < shapes.size(); s++) {
         // Loop over faces
-        size_t index_offset = 0;
+        size_t shape_index_offset = 0ULL;
         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
             int material_id = shapes[s].mesh.material_ids[f];
             if (!indices_by_material.contains(material_id) && !vertices_by_material.contains(material_id)) {
                 indices_by_material[material_id]    = Indices();
                 vertices_by_material[material_id]   = Vertices();
+                material_index_offset[material_id]  = 0ULL;
             }
 
             // Loop over vertices in the face.
             size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
             for (size_t v = 0; v < fv; v++) {
                 // Get face index and ensure normals are present
-                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+                tinyobj::index_t idx = shapes[s].mesh.indices[shape_index_offset + v];
                 assert(idx.normal_index >= 0);
 
                 // Index data
-                indices_by_material[material_id].push_back(static_cast<UINT32>(index_offset + v));
+                indices_by_material[material_id].push_back(static_cast<UINT32>(material_index_offset[material_id] + v));
 
                 // Process vertex data
                 Vertex vertex = {};
@@ -62,8 +64,8 @@ LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
                 // Push vertex data to return object
                 vertices_by_material[material_id].push_back(vertex);
             }
-
-            index_offset += fv;
+            shape_index_offset                  += fv;
+            material_index_offset[material_id]  += fv;
         }
     }
 
