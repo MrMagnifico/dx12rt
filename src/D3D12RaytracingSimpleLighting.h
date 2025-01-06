@@ -80,6 +80,7 @@ private:
     // Scene data buffers
     std::vector<D3DBuffer> m_indexBuffers;
     std::vector<D3DBuffer> m_vertexBuffers;
+    std::vector<D3DBuffer> m_materialIndexBuffers;
     D3DBuffer m_materialsBuffer;
     D3DBuffer m_pointLightsBuffer;
 

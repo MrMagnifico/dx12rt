@@ -327,15 +327,19 @@ void D3D12RaytracingSimpleLighting::BuildGeometry(LoadScene::LoadedObj loaded_ob
     const size_t num_objects    = loaded_obj.indices_per_object.size();
     m_indexBuffers.resize(num_objects);
     m_vertexBuffers.resize(num_objects);
+    m_materialIndexBuffers.resize(num_objects);
     for (size_t i = 0ULL; i < num_objects; i++) {
-        Indices& object_indices     = loaded_obj.indices_per_object[i];
-        Vertices& object_vertices   = loaded_obj.vertices_per_object[i];
-        UINT object_srv_idx_base    = DescriptorHeapSlots::IndexVertexBuffersBegin + (static_cast<UINT>(i) * 2U);
+        Indices& object_indices             = loaded_obj.indices_per_object[i];
+        Vertices& object_vertices           = loaded_obj.vertices_per_object[i];
+        Indices& object_material_indices    = loaded_obj.material_indices_per_object[i];
+        UINT object_srv_idx_base            = DescriptorHeapSlots::IndexVertexMaterialBuffersBegin + (static_cast<UINT>(i) * 3U);
 
         AllocateUploadBuffer(device, object_indices.data(), object_indices.size() * sizeof(Index), &m_indexBuffers[i].resource, L"Indices");
         AllocateUploadBuffer(device, object_vertices.data(), object_vertices.size() * sizeof(Vertex), &m_vertexBuffers[i].resource, L"Vertices");
+        AllocateUploadBuffer(device, object_material_indices.data(), object_material_indices.size() * sizeof(Index), &m_materialIndexBuffers[i].resource, L"MaterialIndices");
         CreateBufferSRV(&m_indexBuffers[i], static_cast<UINT>(object_indices.size()), 0, object_srv_idx_base);
         CreateBufferSRV(&m_vertexBuffers[i], static_cast<UINT>(object_vertices.size()), sizeof(Vertex), object_srv_idx_base + 1U);
+        CreateBufferSRV(&m_materialIndexBuffers[i], static_cast<UINT>(object_material_indices.size()), 0, object_srv_idx_base + 2U);
     }
 }
 

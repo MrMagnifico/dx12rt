@@ -5,7 +5,6 @@
 #include "../tinyobjloader/tiny_obj_loader.h"
 
 #include <iostream>
-#include <map>
 
 
 LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
@@ -26,55 +25,49 @@ LoadScene::LoadedObj LoadScene::load_obj(std::string path) {
     auto& shapes    = reader.GetShapes();
     auto& materials = reader.GetMaterials();
 
-    // Loop over shapes. We group the faces by their material so we can create separate 'objects' out of them in the returned struct
-    std::map<int, Indices> indices_by_material;
-    std::map<int, Vertices> vertices_by_material;
-    std::map<int, size_t> material_index_offset;
+    // Loop over shapes
+    Indices loaded_indices;
+    Vertices loaded_vertices;
+    MaterialIndices loaded_material_indices;
     for (size_t s = 0; s < shapes.size(); s++) {
-        // Loop over faces
-        size_t shape_index_offset = 0ULL;
+        // Loop over faces(polygon)
+        size_t index_offset = 0;
         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-            int material_id = shapes[s].mesh.material_ids[f];
-            if (!indices_by_material.contains(material_id) && !vertices_by_material.contains(material_id)) {
-                indices_by_material[material_id]    = Indices();
-                vertices_by_material[material_id]   = Vertices();
-                material_index_offset[material_id]  = 0ULL;
-            }
+            // Material index for this face
+            loaded_material_indices.push_back(shapes[s].mesh.material_ids[f]);
 
             // Loop over vertices in the face.
             size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
             for (size_t v = 0; v < fv; v++) {
                 // Get face index and ensure normals are present
-                tinyobj::index_t idx = shapes[s].mesh.indices[shape_index_offset + v];
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
                 assert(idx.normal_index >= 0);
 
                 // Index data
-                indices_by_material[material_id].push_back(static_cast<UINT32>(material_index_offset[material_id] + v));
+                loaded_indices.push_back(static_cast<UINT32>(index_offset + v));
 
                 // Process vertex data
                 Vertex vertex = {};
                 // Positions
-                vertex.position.x   = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
-                vertex.position.y   = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
-                vertex.position.z   = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
+                vertex.position.x = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
+                vertex.position.y = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
+                vertex.position.z = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
                 // Normals
                 vertex.normal.x = attrib.normals[3 * size_t(idx.normal_index) + 0];
                 vertex.normal.y = attrib.normals[3 * size_t(idx.normal_index) + 1];
                 vertex.normal.z = attrib.normals[3 * size_t(idx.normal_index) + 2];
                 // Push vertex data to return object
-                vertices_by_material[material_id].push_back(vertex);
+                loaded_vertices.push_back(vertex);
             }
-            shape_index_offset                  += fv;
-            material_index_offset[material_id]  += fv;
+
+            index_offset += fv;
         }
     }
 
-    // Create separate 'objects' in return struct
-    // TODO: Account for objects with material index -1 (i.e. should use the default material)
-    for (const auto& [material_id, indices] : indices_by_material) {
-        loaded_obj.indices_per_object.push_back(indices_by_material[material_id]);
-        loaded_obj.vertices_per_object.push_back(vertices_by_material[material_id]);
-    }
+    // Add loaded shapes as a single object in the return struct
+    loaded_obj.indices_per_object.push_back(loaded_indices);
+    loaded_obj.vertices_per_object.push_back(loaded_vertices);
+    loaded_obj.material_indices_per_object.push_back(loaded_material_indices);
 
     // Loop over materials
     for (const tinyobj::material_t& material : materials) {
