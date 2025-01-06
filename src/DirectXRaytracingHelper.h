@@ -69,13 +69,13 @@ class ShaderTable : public GpuUploadBuffer
 
     ShaderTable() {}
 public:
-    ShaderTable(ID3D12Device* device, UINT numShaderRecords, UINT shaderRecordSize, LPCWSTR resourceName = nullptr) 
+    ShaderTable(ID3D12Device* device, D3D12MA::Allocator* allocator, UINT numShaderRecords, UINT shaderRecordSize, LPCWSTR resourceName = nullptr)
         : m_name(resourceName)
     {
         m_shaderRecordSize = Align(shaderRecordSize, D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT);
         m_shaderRecords.reserve(numShaderRecords);
         UINT bufferSize = numShaderRecords * m_shaderRecordSize;
-        Allocate(device, bufferSize, resourceName);
+        Allocate(device, allocator, bufferSize, resourceName);
         m_mappedShaderRecords = MapCpuWriteOnly();
     }
     
@@ -130,16 +130,17 @@ void DefineExports(T* obj, LPCWSTR(&Exports)[N][M])
 }
 
 
-inline void AllocateUploadBuffer(ID3D12Device* pDevice, void *pData, UINT64 datasize, ID3D12Resource **ppResource, const wchar_t* resourceName = nullptr)
-{
-    auto uploadHeapProperties   = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto bufferDesc             = CD3DX12_RESOURCE_DESC::Buffer(datasize);
-    ThrowIfFailed(pDevice->CreateCommittedResource(
-        &uploadHeapProperties,
-        D3D12_HEAP_FLAG_NONE,
+inline void AllocateUploadBuffer(D3D12MA::Allocator* pAllocator, void *pData, UINT64 datasize, ID3D12Resource **ppResource, D3D12MA::Allocation** ppAllocation,
+                                 const wchar_t* resourceName = nullptr) {
+    D3D12MA::ALLOCATION_DESC allocationDesc = {};
+    allocationDesc.HeapType                 = D3D12_HEAP_TYPE_UPLOAD;
+    auto bufferDesc                         = CD3DX12_RESOURCE_DESC::Buffer(datasize);
+    ThrowIfFailed(pAllocator->CreateResource(
+        &allocationDesc,
         &bufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
+        ppAllocation,
         IID_PPV_ARGS(ppResource)));
     if (resourceName) {
         (*ppResource)->SetName(resourceName);
@@ -152,16 +153,17 @@ inline void AllocateUploadBuffer(ID3D12Device* pDevice, void *pData, UINT64 data
     }
 }
 
-inline void AllocateDeviceBuffer(ID3D12Device* pDevice, UINT64 size, ID3D12Resource** ppResource, bool allow_uav, D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr)
-{
-    auto deviceHeapProperties   = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    auto bufferDesc             = CD3DX12_RESOURCE_DESC::Buffer(size, allow_uav ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE);
-    ThrowIfFailed(pDevice->CreateCommittedResource(
-        &deviceHeapProperties,
-        D3D12_HEAP_FLAG_NONE,
+inline void AllocateDeviceBuffer(D3D12MA::Allocator* pAllocator, UINT64 size, ID3D12Resource** ppResource, D3D12MA::Allocation** ppAllocation, bool allow_uav,
+                                 D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr) {
+    D3D12MA::ALLOCATION_DESC allocationDesc = {};
+    allocationDesc.HeapType                 = D3D12_HEAP_TYPE_DEFAULT;
+    auto bufferDesc                         = CD3DX12_RESOURCE_DESC::Buffer(size, allow_uav ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE);
+    ThrowIfFailed(pAllocator->CreateResource(
+        &allocationDesc,
         &bufferDesc,
         initialState,
         nullptr,
+        ppAllocation,
         IID_PPV_ARGS(ppResource)));
     if (resourceName) {
         (*ppResource)->SetName(resourceName);

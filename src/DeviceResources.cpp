@@ -164,6 +164,13 @@ void DeviceResources::CreateDeviceResources()
     }
 #endif
 
+    // Create the D3D12MA allocator object
+    D3D12MA::ALLOCATOR_DESC allocatorDesc   = {};
+    allocatorDesc.pDevice                   = m_d3dDevice.Get();
+    allocatorDesc.pAdapter                  = m_adapter.Get();
+    allocatorDesc.Flags                     = D3D12MA::ALLOCATOR_FLAG_MSAA_TEXTURES_ALWAYS_COMMITTED;
+    ThrowIfFailed(D3D12MA::CreateAllocator(&allocatorDesc, &m_d3d12maAllocator));
+
     // Determine maximum supported feature level for this device
     static const D3D_FEATURE_LEVEL s_featureLevels[] =
     {
@@ -360,8 +367,6 @@ void DeviceResources::CreateWindowSizeDependentResources()
     {
         // Allocate a 2-D surface as the depth/stencil buffer and create a depth/stencil view
         // on this surface.
-        CD3DX12_HEAP_PROPERTIES depthHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
-
         D3D12_RESOURCE_DESC depthStencilDesc = CD3DX12_RESOURCE_DESC::Tex2D(
             m_depthBufferFormat,
             backBufferWidth,
@@ -376,21 +381,23 @@ void DeviceResources::CreateWindowSizeDependentResources()
         depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
         depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
-        ThrowIfFailed(m_d3dDevice->CreateCommittedResource(&depthHeapProperties,
-            D3D12_HEAP_FLAG_NONE,
+        D3D12MA::ALLOCATION_DESC allocationDesc = {};
+        allocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+        ThrowIfFailed(m_d3d12maAllocator->CreateResource(&allocationDesc,
             &depthStencilDesc,
             D3D12_RESOURCE_STATE_DEPTH_WRITE,
             &depthOptimizedClearValue,
-            IID_PPV_ARGS(&m_depthStencil)
+            &m_depthStencil.allocation,
+            IID_PPV_ARGS(&m_depthStencil.resource)
         ));
 
-        m_depthStencil->SetName(L"Depth stencil");
+        m_depthStencil.resource->SetName(L"Depth stencil");
 
         D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
         dsvDesc.Format = m_depthBufferFormat;
         dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 
-        m_d3dDevice->CreateDepthStencilView(m_depthStencil.Get(), &dsvDesc, m_dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+        m_d3dDevice->CreateDepthStencilView(m_depthStencil.resource.Get(), &dsvDesc, m_dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     }
 
     // Set the 3D rendering viewport and scissor rectangle to target the entire window.
@@ -457,7 +464,8 @@ void DeviceResources::HandleDeviceLost()
         m_renderTargets[n].Reset();
     }
 
-    m_depthStencil.Reset();
+    m_depthStencil.resource.Reset();
+    m_depthStencil.allocation.Reset();
     m_commandQueue.Reset();
     m_commandList.Reset();
     m_fence.Reset();

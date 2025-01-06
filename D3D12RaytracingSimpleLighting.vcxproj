@@ -178,6 +178,7 @@
     </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\d3d12ma\D3D12MemAlloc.h" />
     <ClInclude Include="src\utils\LoadScene.h" />
     <ClInclude Include="src\minipbrt\minipbrt.h" />
     <ClInclude Include="src\DeviceResources.h" />
@@ -194,6 +195,7 @@
     <ClInclude Include="src\utils\stdafx.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\d3d12ma\D3D12MemAlloc.cpp" />
     <ClCompile Include="src\utils\LoadScene.cpp" />
     <ClCompile Include="src\minipbrt\minipbrt.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
