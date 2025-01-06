@@ -480,9 +480,9 @@ void D3D12RaytracingSimpleLighting::BuildAccelerationStructures()
     // Allocate buffers for the actual BLASes and TLAS
     m_bottomLevelAccelerationStructures.resize(num_objects);
     for (size_t i = 0ULL; i < num_objects; i++) {
-        AllocateDeviceBuffer(device, blasPrebuildInfos[i].ResultDataMaxSizeInBytes, &m_bottomLevelAccelerationStructures[i], true);
+        AllocateDeviceBuffer(device, blasPrebuildInfos[i].ResultDataMaxSizeInBytes, &m_bottomLevelAccelerationStructures[i], true, initialResourceState);
     }
-    AllocateDeviceBuffer(device, topLevelPrebuildInfo.ResultDataMaxSizeInBytes, &m_topLevelAccelerationStructure, true);
+    AllocateDeviceBuffer(device, topLevelPrebuildInfo.ResultDataMaxSizeInBytes, &m_topLevelAccelerationStructure, true, initialResourceState);
     
     // Create an instance for each BLAS
     D3D12_RAYTRACING_INSTANCE_DESC baseInstanceDesc = {};
