@@ -110,23 +110,6 @@ public:
     }
 };
 
-inline void AllocateUAVBuffer(ID3D12Device* pDevice, UINT64 bufferSize, ID3D12Resource **ppResource, D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr)
-{
-    auto uploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-    ThrowIfFailed(pDevice->CreateCommittedResource(
-        &uploadHeapProperties,
-        D3D12_HEAP_FLAG_NONE,
-        &bufferDesc,
-        initialResourceState,
-        nullptr,
-        IID_PPV_ARGS(ppResource)));
-    if (resourceName)
-    {
-        (*ppResource)->SetName(resourceName);
-    }
-}
-
 template<class T, size_t N>
 void DefineExports(T* obj, LPCWSTR(&Exports)[N])
 {
@@ -169,10 +152,10 @@ inline void AllocateUploadBuffer(ID3D12Device* pDevice, void *pData, UINT64 data
     }
 }
 
-inline void AllocateDeviceBuffer(ID3D12Device* pDevice, UINT64 size, D3D12_RESOURCE_STATES initialState, ID3D12Resource** ppResource, const wchar_t* resourceName = nullptr)
+inline void AllocateDeviceBuffer(ID3D12Device* pDevice, UINT64 size, ID3D12Resource** ppResource, bool allow_uav, D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr)
 {
     auto deviceHeapProperties   = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    auto bufferDesc             = CD3DX12_RESOURCE_DESC::Buffer(size);
+    auto bufferDesc             = CD3DX12_RESOURCE_DESC::Buffer(size, allow_uav ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE);
     ThrowIfFailed(pDevice->CreateCommittedResource(
         &deviceHeapProperties,
         D3D12_HEAP_FLAG_NONE,

@@ -352,9 +352,9 @@ void D3D12RaytracingSimpleLighting::BuildGeometry(LoadScene::LoadedObj loaded_ob
         AllocateUploadBuffer(device, object_indices.data(), indicesSize, &indexStagingBuffers[i].resource, L"IndicesStaging");
         AllocateUploadBuffer(device, object_vertices.data(), verticesSize, &vertexStagingBuffers[i].resource, L"VerticesStaging");
         AllocateUploadBuffer(device, object_material_indices.data(), materialIndicesSize, &materialIndexStagingBuffers[i].resource, L"MaterialIndicesStaging");
-        AllocateDeviceBuffer(device, indicesSize, D3D12_RESOURCE_STATE_COPY_DEST, &m_indexBuffers[i].resource, L"Indices");
-        AllocateDeviceBuffer(device, verticesSize, D3D12_RESOURCE_STATE_COPY_DEST, &m_vertexBuffers[i].resource, L"Vertices");
-        AllocateDeviceBuffer(device, materialIndicesSize, D3D12_RESOURCE_STATE_COPY_DEST, &m_materialIndexBuffers[i].resource, L"MaterialIndicess");
+        AllocateDeviceBuffer(device, indicesSize, &m_indexBuffers[i].resource, false, D3D12_RESOURCE_STATE_COPY_DEST, L"Indices");
+        AllocateDeviceBuffer(device, verticesSize, &m_vertexBuffers[i].resource, false, D3D12_RESOURCE_STATE_COPY_DEST, L"Vertices");
+        AllocateDeviceBuffer(device, materialIndicesSize, &m_materialIndexBuffers[i].resource, false, D3D12_RESOURCE_STATE_COPY_DEST, L"MaterialIndicess");
 
         // Create SRVs for device-side buffers
         UINT object_srv_idx_base = DescriptorHeapSlots::IndexVertexMaterialBuffersBegin + (static_cast<UINT>(i) * 3U);
@@ -392,7 +392,7 @@ void D3D12RaytracingSimpleLighting::BuildMaterials(LoadScene::LoadedObj loaded_o
     D3DBuffer materialsStagingBuffer;
     size_t materialsSize = loaded_obj.materials.size() * sizeof(MaterialPBR);
     AllocateUploadBuffer(device, loaded_obj.materials.data(), materialsSize, &materialsStagingBuffer.resource, L"MaterialsStaging");
-    AllocateDeviceBuffer(device, materialsSize, D3D12_RESOURCE_STATE_COPY_DEST, &m_materialsBuffer.resource, L"Materials");
+    AllocateDeviceBuffer(device, materialsSize, &m_materialsBuffer.resource, false, D3D12_RESOURCE_STATE_COPY_DEST, L"Materials");
     CreateBufferSRV(&m_materialsBuffer, static_cast<UINT>(loaded_obj.materials.size()), sizeof(MaterialPBR), DescriptorHeapSlots::MaterialsBuffer);
 
     // Queue copies from staging buffer copies and transitions to SRV state
@@ -463,12 +463,12 @@ void D3D12RaytracingSimpleLighting::BuildAccelerationStructures()
     // Allocate scratch space for BLAS builds
     std::vector<ComPtr<ID3D12Resource>> scratchResourcesBlas(num_objects);
     for (size_t i = 0ULL; i < num_objects; i++) {
-        AllocateUAVBuffer(device, blasPrebuildInfos[i].ScratchDataSizeInBytes, &scratchResourcesBlas[i], D3D12_RESOURCE_STATE_COMMON, L"ScratchResourceBLAS");
+        AllocateDeviceBuffer(device, blasPrebuildInfos[i].ScratchDataSizeInBytes, &scratchResourcesBlas[i], true);
     }
     
     // Allocate scratch space for TLAS build
     ComPtr<ID3D12Resource> scratchResourceTlas;
-    AllocateUAVBuffer(device, topLevelPrebuildInfo.ScratchDataSizeInBytes, &scratchResourceTlas, D3D12_RESOURCE_STATE_COMMON, L"ScratchResourceTLAS");
+    AllocateDeviceBuffer(device, topLevelPrebuildInfo.ScratchDataSizeInBytes, &scratchResourceTlas, true);
 
     // Acceleration structures can only be placed in resources that are created in the default heap (or custom heap equivalent). 
     // The resources that will contain acceleration structures must be created in the state D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, 
@@ -480,9 +480,9 @@ void D3D12RaytracingSimpleLighting::BuildAccelerationStructures()
     // Allocate buffers for the actual BLASes and TLAS
     m_bottomLevelAccelerationStructures.resize(num_objects);
     for (size_t i = 0ULL; i < num_objects; i++) {
-        AllocateUAVBuffer(device, blasPrebuildInfos[i].ResultDataMaxSizeInBytes, &m_bottomLevelAccelerationStructures[i], initialResourceState, L"BottomLevelAccelerationStructure");
+        AllocateDeviceBuffer(device, blasPrebuildInfos[i].ResultDataMaxSizeInBytes, &m_bottomLevelAccelerationStructures[i], true);
     }
-    AllocateUAVBuffer(device, topLevelPrebuildInfo.ResultDataMaxSizeInBytes, &m_topLevelAccelerationStructure, initialResourceState, L"TopLevelAccelerationStructure");
+    AllocateDeviceBuffer(device, topLevelPrebuildInfo.ResultDataMaxSizeInBytes, &m_topLevelAccelerationStructure, true);
     
     // Create an instance for each BLAS
     D3D12_RAYTRACING_INSTANCE_DESC baseInstanceDesc = {};
@@ -550,7 +550,7 @@ void D3D12RaytracingSimpleLighting::BuildLightBuffers()
     D3DBuffer pointLightsStaging;
     size_t pointLightsSize = pointLights.size() * sizeof(PointLight);
     AllocateUploadBuffer(device, pointLights.data(), pointLightsSize, &pointLightsStaging.resource, L"PointLightsStaging");
-    AllocateDeviceBuffer(device, pointLightsSize, D3D12_RESOURCE_STATE_COPY_DEST, &m_pointLightsBuffer.resource, L"PointLights");
+    AllocateDeviceBuffer(device, pointLightsSize, &m_pointLightsBuffer.resource, false, D3D12_RESOURCE_STATE_COPY_DEST, L"PointLights");
     CreateBufferSRV(&m_pointLightsBuffer, static_cast<UINT>(pointLights.size()), sizeof(PointLight), DescriptorHeapSlots::PointLightsBuffer);
 
     // Queue copies from staging buffer copies and transitions to SRV state
