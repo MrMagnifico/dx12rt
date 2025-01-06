@@ -152,8 +152,9 @@ void MyClosestHitShader(inout RayPayload payload, in BuiltInTriangleIntersection
         payload.hit = true;
     } else {
         // Retrieve the index and vertex buffers of the instance we hit
-        ByteAddressBuffer instanceIndices           = ResourceDescriptorHeap[DescriptorHeapSlots::IndexVertexBuffersBegin + InstanceID()];
-        StructuredBuffer<Vertex> instanceVertices   = ResourceDescriptorHeap[DescriptorHeapSlots::IndexVertexBuffersBegin + InstanceID() + 1];
+        uint object_srv_idx_base                    = DescriptorHeapSlots::IndexVertexBuffersBegin + (InstanceID() * 2U);
+        ByteAddressBuffer instanceIndices           = ResourceDescriptorHeap[object_srv_idx_base];
+        StructuredBuffer<Vertex> instanceVertices   = ResourceDescriptorHeap[object_srv_idx_base + 1];
         
         // Load up 3 32 bit indices for the triangle.
         static const uint indexSizeInBytes      = 4;
