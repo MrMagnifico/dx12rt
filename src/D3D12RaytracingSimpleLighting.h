@@ -22,7 +22,6 @@ enum BoundResourceSlots {
     BoundResourceSlotsCount
 };
 
-
 class D3D12RaytracingSimpleLighting : public DXSample
 {
 public:
@@ -52,7 +51,7 @@ private:
         uint8_t alignmentPadding[D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT];
     };
     AlignedSceneConstantBuffer* m_mappedConstantData;
-    DX::D3DResource             m_perFrameConstants;
+    D3DResource                 m_perFrameConstants;
 
     // DirectX Raytracing (DXR) attributes
     ComPtr<ID3D12Device5> m_dxrDevice;
@@ -70,38 +69,34 @@ private:
     // Constant buffers
     SceneConstantBuffer m_sceneCB[FrameCount];
 
-    struct D3DBuffer {
-        DX::D3DResource resource;
-        D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptorHandle;
-        D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle;
-    };
-
-    // Scene data buffers
-    // The following vectors have an entry for each object/BLAS
+    // Geometry data buffers. The following vectors have an entry for each object/BLAS
     std::vector<D3DBuffer> m_indexBuffers;
     std::vector<D3DBuffer> m_vertexBuffers;
     std::vector<D3DBuffer> m_materialIndexBuffers;
+
+    // Scene data buffers
     D3DBuffer m_materialsBuffer;
     D3DBuffer m_pointLightsBuffer;
 
     // Acceleration structures
-    std::vector<DX::D3DResource> m_bottomLevelAccelerationStructures;
-    DX::D3DResource m_topLevelAccelerationStructure;
+    std::vector<D3DResource> m_bottomLevelAccelerationStructures;
+    D3DResource m_topLevelAccelerationStructure;
     D3D12_CPU_DESCRIPTOR_HANDLE m_tlasCpuDescriptorHandle;
     D3D12_GPU_DESCRIPTOR_HANDLE m_tlasGpuDescriptorHandle;
 
-    // Raytracing output
-    DX::D3DResource m_raytracingOutput;
-    D3D12_GPU_DESCRIPTOR_HANDLE m_raytracingOutputResourceUAVGpuDescriptor;
+    // Render targets
+    D3DRenderTarget m_hdrOutput;
+    D3DRenderTarget m_gBufferPositionAndRoughness;
+    D3DRenderTarget m_gBufferAlbedoAndMetal;
 
     // Shader tables
     static const wchar_t* c_hitGroupName;
     static const wchar_t* c_raygenShaderName;
     static const wchar_t* c_closestHitShaderName;
     static const wchar_t* c_missShaderName;
-    DX::D3DResource m_missShaderTable;
-    DX::D3DResource m_hitGroupShaderTable;
-    DX::D3DResource m_rayGenShaderTable;
+    D3DResource m_missShaderTable;
+    D3DResource m_hitGroupShaderTable;
+    D3DResource m_rayGenShaderTable;
     
     // Application state
     StepTimer m_timer;
@@ -124,7 +119,7 @@ private:
     void CreateRootSignatures();
     void CreateRaytracingPipelineStateObject();
     void CreateDescriptorHeap();
-    void CreateRaytracingOutputResource();
+    void CreateRenderTargets();
     void BuildLightBuffers();
     void BuildMaterials(LoadScene::LoadedObj loaded_obj);
     void BuildGeometry(LoadScene::LoadedObj loaded_obj);
@@ -133,6 +128,8 @@ private:
     void UpdateForSizeChange(UINT clientWidth, UINT clientHeight);
     void CopyRaytracingOutputToBackbuffer();
     void CalculateFrameStats();
+
     UINT AllocateDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE* cpuDescriptor, UINT descriptorIndexToUse = UINT_MAX);
     UINT CreateBufferSRV(D3DBuffer* buffer, UINT numElements, UINT elementSize, UINT descriptorIndexToUse = UINT_MAX);
+    UINT CreateUAV(D3D12_GPU_DESCRIPTOR_HANDLE* gpu_handle, ID3D12Resource* resource, D3D12_UAV_DIMENSION uav_dimension, UINT descriptorIndexToUse = UINT_MAX);
 };

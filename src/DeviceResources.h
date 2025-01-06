@@ -16,14 +16,10 @@
 #pragma once
 
 #include "d3d12ma/D3D12MemAlloc.h"
+#include "DXResources.h"
 
 namespace DX
 {
-    struct D3DResource {
-        ComPtr<D3D12MA::Allocation> allocation;
-        ComPtr<ID3D12Resource> resource;
-    };
-
     // Provides an interface for an application that owns DeviceResources to be notified of the device being lost or created.
     interface IDeviceNotify
     {

@@ -20,7 +20,7 @@
 static StructuredBuffer<PointLight> PointLights = ResourceDescriptorHeap[DescriptorHeapSlots::PointLightsBuffer];
 static StructuredBuffer<MaterialPBR> Materials  = ResourceDescriptorHeap[DescriptorHeapSlots::MaterialsBuffer];
 // Others
-static RWTexture2D<float4> RenderTarget         = ResourceDescriptorHeap[DescriptorHeapSlots::OutputRenderTarget];
+static RWTexture2D<float4> RenderTarget         = ResourceDescriptorHeap[DescriptorHeapSlots::HDROutputRT];
 
 // Non-bindless resources
 RaytracingAccelerationStructure Scene : register(t0, space0);

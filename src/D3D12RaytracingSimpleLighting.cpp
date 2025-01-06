@@ -173,7 +173,7 @@ void D3D12RaytracingSimpleLighting::CreateDeviceDependentResources()
     BuildShaderTables();
 
     // Create an output 2D texture to store the raytracing result to.
-    CreateRaytracingOutputResource();
+    CreateRenderTargets();
 }
 
 void D3D12RaytracingSimpleLighting::SerializeAndCreateVersionedRootSignature(D3D12_VERSIONED_ROOT_SIGNATURE_DESC& desc, ComPtr<ID3D12RootSignature>* rootSig)
@@ -282,25 +282,21 @@ void D3D12RaytracingSimpleLighting::CreateRaytracingPipelineStateObject()
 }
 
 // Create 2D output texture for raytracing.
-void D3D12RaytracingSimpleLighting::CreateRaytracingOutputResource()
+void D3D12RaytracingSimpleLighting::CreateRenderTargets()
 {
     ID3D12Device* device            = m_deviceResources->GetD3DDevice();
     D3D12MA::Allocator* allocator   = m_deviceResources->GetD3DMAllocator();
-    DXGI_FORMAT backbufferFormat    = m_deviceResources->GetBackBufferFormat();
 
-    // Create the output resource. The dimensions and format should match the swap-chain.
-    CD3DX12_RESOURCE_DESC uavDesc           = CD3DX12_RESOURCE_DESC::Tex2D(backbufferFormat, m_width, m_height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-    D3D12MA::ALLOCATION_DESC allocationDesc = {};
-    allocationDesc.HeapType                 = D3D12_HEAP_TYPE_DEFAULT;
-    ThrowIfFailed(allocator->CreateResource(&allocationDesc, &uavDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, &m_raytracingOutput.allocation, IID_PPV_ARGS(&m_raytracingOutput.resource)));
-    NAME_D3D12_OBJECT(m_raytracingOutput.resource);
-
-    D3D12_CPU_DESCRIPTOR_HANDLE uavDescriptorHandle;
-    AllocateDescriptor(&uavDescriptorHandle, DescriptorHeapSlots::OutputRenderTarget);
-    D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc    = {};
-    UAVDesc.ViewDimension                       = D3D12_UAV_DIMENSION_TEXTURE2D;
-    device->CreateUnorderedAccessView(m_raytracingOutput.resource.Get(), nullptr, &UAVDesc, uavDescriptorHandle);
-    m_raytracingOutputResourceUAVGpuDescriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), DescriptorHeapSlots::OutputRenderTarget, m_descriptorSize);
+    std::vector<D3DRenderTarget*> render_targets    = { &m_hdrOutput, &m_gBufferPositionAndRoughness, &m_gBufferAlbedoAndMetal};
+    std::vector<DXGI_FORMAT> render_target_formats  = { m_deviceResources->GetBackBufferFormat(), DXGI_FORMAT_R32G32B32A32_FLOAT, DXGI_FORMAT_R32G32B32A32_FLOAT }; // TODO: Change HDR output to R32G32B32_FLOAT
+    std::vector<const wchar_t*> render_target_names = { L"HDR Output", L"GBuffer - Position and Roughness", L"GBuffer - Albedo and Metal"};
+    for (size_t i = 0ULL; i < render_targets.size(); i++) {
+        D3DRenderTarget* rt     = render_targets[i];
+        DXGI_FORMAT rt_format   = render_target_formats[i];
+        const wchar_t* rt_name  = render_target_names[i];
+        AllocateDeviceTexture(allocator, rt_format, m_width, m_height, &rt->d3d_resource.resource, &rt->d3d_resource.allocation, true, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, rt_name);
+        CreateUAV(&rt->gpuDescriptorHandle, rt->d3d_resource.resource.Get(), D3D12_UAV_DIMENSION_TEXTURE2D, DescriptorHeapSlots::HDROutputRT + static_cast<UINT>(i));
+    }
 }
 
 void D3D12RaytracingSimpleLighting::CreateDescriptorHeap()
@@ -347,12 +343,12 @@ void D3D12RaytracingSimpleLighting::BuildGeometry(LoadScene::LoadedObj loaded_ob
         size_t indicesSize          = object_indices.size() * sizeof(Index);
         size_t verticesSize         = object_vertices.size() * sizeof(Vertex);
         size_t materialIndicesSize  = object_material_indices.size() * sizeof(Index);
-        AllocateUploadBuffer(allocator, object_indices.data(), indicesSize, &indexStagingBuffers[i].resource.resource, &indexStagingBuffers[i].resource.allocation, L"IndicesStaging");
-        AllocateUploadBuffer(allocator, object_vertices.data(), verticesSize, &vertexStagingBuffers[i].resource.resource, &vertexStagingBuffers[i].resource.allocation, L"VerticesStaging");
-        AllocateUploadBuffer(allocator, object_material_indices.data(), materialIndicesSize, &materialIndexStagingBuffers[i].resource.resource, &materialIndexStagingBuffers[i].resource.allocation, L"MaterialIndicesStaging");
-        AllocateDeviceBuffer(allocator, indicesSize, &m_indexBuffers[i].resource.resource, &m_indexBuffers[i].resource.allocation, false, D3D12_RESOURCE_STATE_COPY_DEST, L"Indices");
-        AllocateDeviceBuffer(allocator, verticesSize, &m_vertexBuffers[i].resource.resource, &m_vertexBuffers[i].resource.allocation, false, D3D12_RESOURCE_STATE_COPY_DEST, L"Vertices");
-        AllocateDeviceBuffer(allocator, materialIndicesSize, &m_materialIndexBuffers[i].resource.resource, &m_materialIndexBuffers[i].resource.allocation, false, D3D12_RESOURCE_STATE_COPY_DEST, L"MaterialIndicess");
+        AllocateUploadBuffer(allocator, object_indices.data(), indicesSize, &indexStagingBuffers[i].d3d_resource.resource, &indexStagingBuffers[i].d3d_resource.allocation, L"IndicesStaging");
+        AllocateUploadBuffer(allocator, object_vertices.data(), verticesSize, &vertexStagingBuffers[i].d3d_resource.resource, &vertexStagingBuffers[i].d3d_resource.allocation, L"VerticesStaging");
+        AllocateUploadBuffer(allocator, object_material_indices.data(), materialIndicesSize, &materialIndexStagingBuffers[i].d3d_resource.resource, &materialIndexStagingBuffers[i].d3d_resource.allocation, L"MaterialIndicesStaging");
+        AllocateDeviceBuffer(allocator, indicesSize, &m_indexBuffers[i].d3d_resource.resource, &m_indexBuffers[i].d3d_resource.allocation, false, D3D12_RESOURCE_STATE_COMMON, L"Indices");
+        AllocateDeviceBuffer(allocator, verticesSize, &m_vertexBuffers[i].d3d_resource.resource, &m_vertexBuffers[i].d3d_resource.allocation, false, D3D12_RESOURCE_STATE_COMMON, L"Vertices");
+        AllocateDeviceBuffer(allocator, materialIndicesSize, &m_materialIndexBuffers[i].d3d_resource.resource, &m_materialIndexBuffers[i].d3d_resource.allocation, false, D3D12_RESOURCE_STATE_COMMON, L"MaterialIndices");
 
         // Create SRVs for device-side buffers
         UINT object_srv_idx_base = DescriptorHeapSlots::IndexVertexMaterialBuffersBegin + (static_cast<UINT>(i) * 3U);
@@ -361,13 +357,13 @@ void D3D12RaytracingSimpleLighting::BuildGeometry(LoadScene::LoadedObj loaded_ob
         CreateBufferSRV(&m_materialIndexBuffers[i], static_cast<UINT>(object_material_indices.size()), 0, object_srv_idx_base + 2U);
 
         // Queue copies from staging buffer copies and transitions to SRV state
-        commandList->CopyResource(m_indexBuffers[i].resource.resource.Get(), indexStagingBuffers[i].resource.resource.Get());
-        commandList->CopyResource(m_vertexBuffers[i].resource.resource.Get(), vertexStagingBuffers[i].resource.resource.Get());
-        commandList->CopyResource(m_materialIndexBuffers[i].resource.resource.Get(), materialIndexStagingBuffers[i].resource.resource.Get());
+        commandList->CopyResource(m_indexBuffers[i].d3d_resource.resource.Get(), indexStagingBuffers[i].d3d_resource.resource.Get());
+        commandList->CopyResource(m_vertexBuffers[i].d3d_resource.resource.Get(), vertexStagingBuffers[i].d3d_resource.resource.Get());
+        commandList->CopyResource(m_materialIndexBuffers[i].d3d_resource.resource.Get(), materialIndexStagingBuffers[i].d3d_resource.resource.Get());
         CD3DX12_RESOURCE_BARRIER srvTransitions[3] = {
-            CD3DX12_RESOURCE_BARRIER::Transition(m_indexBuffers[i].resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-            CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffers[i].resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-            CD3DX12_RESOURCE_BARRIER::Transition(m_materialIndexBuffers[i].resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
+            CD3DX12_RESOURCE_BARRIER::Transition(m_indexBuffers[i].d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffers[i].d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(m_materialIndexBuffers[i].d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
         };
         commandList->ResourceBarrier(3, srvTransitions);
     }
@@ -389,13 +385,13 @@ void D3D12RaytracingSimpleLighting::BuildMaterials(LoadScene::LoadedObj loaded_o
     // Create device buffer, staging buffer, and an SRV for the device buffer
     D3DBuffer materialsStagingBuffer;
     size_t materialsSize = loaded_obj.materials.size() * sizeof(MaterialPBR);
-    AllocateUploadBuffer(allocator, loaded_obj.materials.data(), materialsSize, &materialsStagingBuffer.resource.resource, &materialsStagingBuffer.resource.allocation, L"MaterialsStaging");
-    AllocateDeviceBuffer(allocator, materialsSize, &m_materialsBuffer.resource.resource, &m_materialsBuffer.resource.allocation, false, D3D12_RESOURCE_STATE_COPY_DEST, L"Materials");
+    AllocateUploadBuffer(allocator, loaded_obj.materials.data(), materialsSize, &materialsStagingBuffer.d3d_resource.resource, &materialsStagingBuffer.d3d_resource.allocation, L"MaterialsStaging");
+    AllocateDeviceBuffer(allocator, materialsSize, &m_materialsBuffer.d3d_resource.resource, &m_materialsBuffer.d3d_resource.allocation, false, D3D12_RESOURCE_STATE_COMMON, L"Materials");
     CreateBufferSRV(&m_materialsBuffer, static_cast<UINT>(loaded_obj.materials.size()), sizeof(MaterialPBR), DescriptorHeapSlots::MaterialsBuffer);
 
     // Queue copies from staging buffer copies and transitions to SRV state
-    commandList->CopyResource(m_materialsBuffer.resource.resource.Get(), materialsStagingBuffer.resource.resource.Get());
-    CD3DX12_RESOURCE_BARRIER srvTransition = CD3DX12_RESOURCE_BARRIER::Transition(m_materialsBuffer.resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    commandList->CopyResource(m_materialsBuffer.d3d_resource.resource.Get(), materialsStagingBuffer.d3d_resource.resource.Get());
+    CD3DX12_RESOURCE_BARRIER srvTransition = CD3DX12_RESOURCE_BARRIER::Transition(m_materialsBuffer.d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     commandList->ResourceBarrier(1, &srvTransition);
 
     // Kick off staging buffer copy and wait for GPU to finish as the locally created temporary GPU resources will get released once we go out of scope
@@ -424,10 +420,10 @@ void D3D12RaytracingSimpleLighting::BuildAccelerationStructures()
     baseGeometryDesc.Flags                                  = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE; // TODO: Change this if we ever decide to support transparent geometry
     std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> blasDescs(num_objects, baseGeometryDesc);
     for (size_t i = 0ULL; i < num_objects; i++) {
-        blasDescs[i].Triangles.VertexBuffer.StartAddress    = m_vertexBuffers[i].resource.resource->GetGPUVirtualAddress();
-        blasDescs[i].Triangles.VertexCount                  = static_cast<UINT>(m_vertexBuffers[i].resource.resource->GetDesc().Width) / sizeof(Vertex);
-        blasDescs[i].Triangles.IndexBuffer                  = m_indexBuffers[i].resource.resource->GetGPUVirtualAddress();
-        blasDescs[i].Triangles.IndexCount                   = static_cast<UINT>(m_indexBuffers[i].resource.resource->GetDesc().Width) / sizeof(Index);
+        blasDescs[i].Triangles.VertexBuffer.StartAddress    = m_vertexBuffers[i].d3d_resource.resource->GetGPUVirtualAddress();
+        blasDescs[i].Triangles.VertexCount                  = static_cast<UINT>(m_vertexBuffers[i].d3d_resource.resource->GetDesc().Width) / sizeof(Vertex);
+        blasDescs[i].Triangles.IndexBuffer                  = m_indexBuffers[i].d3d_resource.resource->GetGPUVirtualAddress();
+        blasDescs[i].Triangles.IndexCount                   = static_cast<UINT>(m_indexBuffers[i].d3d_resource.resource->GetDesc().Width) / sizeof(Index);
     }
 
     // For both BLASes and TLASes, we would like a slow build in exchange for fast tracing
@@ -547,13 +543,13 @@ void D3D12RaytracingSimpleLighting::BuildLightBuffers()
     // Create device buffer, staging buffer, and an SRV for the device buffer
     D3DBuffer pointLightsStaging;
     size_t pointLightsSize = pointLights.size() * sizeof(PointLight);
-    AllocateUploadBuffer(allocator, pointLights.data(), pointLightsSize, &pointLightsStaging.resource.resource, &pointLightsStaging.resource.allocation, L"PointLightsStaging");
-    AllocateDeviceBuffer(allocator, pointLightsSize, &m_pointLightsBuffer.resource.resource, &m_pointLightsBuffer.resource.allocation, false, D3D12_RESOURCE_STATE_COPY_DEST, L"PointLights");
+    AllocateUploadBuffer(allocator, pointLights.data(), pointLightsSize, &pointLightsStaging.d3d_resource.resource, &pointLightsStaging.d3d_resource.allocation, L"PointLightsStaging");
+    AllocateDeviceBuffer(allocator, pointLightsSize, &m_pointLightsBuffer.d3d_resource.resource, &m_pointLightsBuffer.d3d_resource.allocation, false, D3D12_RESOURCE_STATE_COMMON, L"PointLights");
     CreateBufferSRV(&m_pointLightsBuffer, static_cast<UINT>(pointLights.size()), sizeof(PointLight), DescriptorHeapSlots::PointLightsBuffer);
 
     // Queue copies from staging buffer copies and transitions to SRV state
-    commandList->CopyResource(m_pointLightsBuffer.resource.resource.Get(), pointLightsStaging.resource.resource.Get());
-    CD3DX12_RESOURCE_BARRIER srvTransition = CD3DX12_RESOURCE_BARRIER::Transition(m_pointLightsBuffer.resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    commandList->CopyResource(m_pointLightsBuffer.d3d_resource.resource.Get(), pointLightsStaging.d3d_resource.resource.Get());
+    CD3DX12_RESOURCE_BARRIER srvTransition = CD3DX12_RESOURCE_BARRIER::Transition(m_pointLightsBuffer.d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     commandList->ResourceBarrier(1, &srvTransition);
 
     // Kick off staging buffer copy and wait for GPU to finish as the locally created temporary GPU resources will get released once we go out of scope
@@ -689,14 +685,14 @@ void D3D12RaytracingSimpleLighting::CopyRaytracingOutputToBackbuffer()
 
     D3D12_RESOURCE_BARRIER preCopyBarriers[2];
     preCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
-    preCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.resource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    preCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_hdrOutput.d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     commandList->ResourceBarrier(ARRAYSIZE(preCopyBarriers), preCopyBarriers);
 
-    commandList->CopyResource(renderTarget, m_raytracingOutput.resource.Get());
+    commandList->CopyResource(renderTarget, m_hdrOutput.d3d_resource.resource.Get());
 
     D3D12_RESOURCE_BARRIER postCopyBarriers[2];
     postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
-    postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_raytracingOutput.resource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_hdrOutput.d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     commandList->ResourceBarrier(ARRAYSIZE(postCopyBarriers), postCopyBarriers);
 }
@@ -704,15 +700,19 @@ void D3D12RaytracingSimpleLighting::CopyRaytracingOutputToBackbuffer()
 // Create resources that are dependent on the size of the main window.
 void D3D12RaytracingSimpleLighting::CreateWindowSizeDependentResources()
 {
-    CreateRaytracingOutputResource(); 
+    CreateRenderTargets(); 
     UpdateCameraMatrices();
 }
 
 // Release resources that are dependent on the size of the main window.
 void D3D12RaytracingSimpleLighting::ReleaseWindowSizeDependentResources()
 {
-    m_raytracingOutput.resource.Reset();
-    m_raytracingOutput.allocation.Reset();
+    m_hdrOutput.d3d_resource.resource.Reset();
+    m_hdrOutput.d3d_resource.allocation.Reset();
+    m_gBufferPositionAndRoughness.d3d_resource.resource.Reset();
+    m_gBufferPositionAndRoughness.d3d_resource.allocation.Reset();
+    m_gBufferAlbedoAndMetal.d3d_resource.resource.Reset();
+    m_gBufferAlbedoAndMetal.d3d_resource.allocation.Reset();
 }
 
 // Release all resources that depend on the device.
@@ -726,8 +726,8 @@ void D3D12RaytracingSimpleLighting::ReleaseDeviceDependentResources()
     m_descriptorHeap.Reset();
     m_descriptorsAllocated = 0;
 
-    m_pointLightsBuffer.resource.resource.Reset();
-    m_pointLightsBuffer.resource.allocation.Reset();
+    m_pointLightsBuffer.d3d_resource.resource.Reset();
+    m_pointLightsBuffer.d3d_resource.allocation.Reset();
     m_perFrameConstants.resource.Reset();
     m_perFrameConstants.allocation.Reset();
     m_rayGenShaderTable.resource.Reset();
@@ -737,8 +737,8 @@ void D3D12RaytracingSimpleLighting::ReleaseDeviceDependentResources()
     m_hitGroupShaderTable.resource.Reset();
     m_hitGroupShaderTable.allocation.Reset();
     for (size_t i = 0ULL; i < m_indexBuffers.size(); i++) {
-        m_indexBuffers[i].resource.resource.Reset();
-        m_vertexBuffers[i].resource.allocation.Reset();
+        m_indexBuffers[i].d3d_resource.resource.Reset();
+        m_vertexBuffers[i].d3d_resource.allocation.Reset();
         m_bottomLevelAccelerationStructures[i].resource.Reset();
         m_bottomLevelAccelerationStructures[i].allocation.Reset();
     }
@@ -873,7 +873,18 @@ UINT D3D12RaytracingSimpleLighting::CreateBufferSRV(D3DBuffer* buffer, UINT numE
         srvDesc.Buffer.StructureByteStride = elementSize;
     }
     UINT descriptorIndex = AllocateDescriptor(&buffer->cpuDescriptorHandle, descriptorIndexToUse);
-    device->CreateShaderResourceView(buffer->resource.resource.Get(), &srvDesc, buffer->cpuDescriptorHandle);
+    device->CreateShaderResourceView(buffer->d3d_resource.resource.Get(), &srvDesc, buffer->cpuDescriptorHandle);
     buffer->gpuDescriptorHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), descriptorIndex, m_descriptorSize);
+    return descriptorIndex;
+}
+
+UINT D3D12RaytracingSimpleLighting::CreateUAV(D3D12_GPU_DESCRIPTOR_HANDLE* gpu_handle, ID3D12Resource* resource, D3D12_UAV_DIMENSION uav_dimension, UINT descriptorIndexToUse) {
+    ID3D12Device* device                            = m_deviceResources->GetD3DDevice();
+    D3D12_CPU_DESCRIPTOR_HANDLE uavDescriptorHandle = {};
+    UINT descriptorIndex                            = AllocateDescriptor(&uavDescriptorHandle, descriptorIndexToUse);
+    D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc        = {};
+    UAVDesc.ViewDimension                           = uav_dimension;
+    device->CreateUnorderedAccessView(resource, nullptr, &UAVDesc, uavDescriptorHandle);
+    *gpu_handle                                     = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), descriptorIndex, m_descriptorSize);
     return descriptorIndex;
 }

@@ -260,12 +260,6 @@ protected:
     }
 };
 
-struct D3DBuffer
-{
-    ComPtr<ID3D12Resource> resource;
-    D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptorHandle;
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandle;
-};
 
 // Helper class to create and update a constant buffer with proper constant buffer alignments.
 // Usage: ToDo

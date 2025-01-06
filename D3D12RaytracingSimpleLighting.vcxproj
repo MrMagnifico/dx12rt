@@ -179,6 +179,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\d3d12ma\D3D12MemAlloc.h" />
+    <ClInclude Include="src\DXResources.h" />
     <ClInclude Include="src\utils\LoadScene.h" />
     <ClInclude Include="src\minipbrt\minipbrt.h" />
     <ClInclude Include="src\DeviceResources.h" />

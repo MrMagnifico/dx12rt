@@ -170,6 +170,24 @@ inline void AllocateDeviceBuffer(D3D12MA::Allocator* pAllocator, UINT64 size, ID
     }
 }
 
+inline void AllocateDeviceTexture(D3D12MA::Allocator* pAllocator, DXGI_FORMAT format, UINT64 width, UINT height,
+                                  ID3D12Resource** ppResource, D3D12MA::Allocation** ppAllocation, bool allow_uav,
+                                  D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON, const wchar_t* resourceName = nullptr) {
+    D3D12MA::ALLOCATION_DESC allocationDesc = {};
+    allocationDesc.HeapType                 = D3D12_HEAP_TYPE_DEFAULT;
+    auto textureDesc                        = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height, 1U, 1U, 1U, 0U, allow_uav ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE);
+    ThrowIfFailed(pAllocator->CreateResource(
+        &allocationDesc,
+        &textureDesc,
+        initialState,
+        nullptr,
+        ppAllocation,
+        IID_PPV_ARGS(ppResource)));
+    if (resourceName) {
+        (*ppResource)->SetName(resourceName);
+    }
+}
+
 // Pretty-print a state object tree.
 inline void PrintStateObjectDesc(const D3D12_STATE_OBJECT_DESC* desc)
 {
