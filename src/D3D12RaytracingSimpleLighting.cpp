@@ -140,8 +140,6 @@ void D3D12RaytracingSimpleLighting::CreateConstantBuffers()
 // Create resources that depend on the device.
 void D3D12RaytracingSimpleLighting::CreateDeviceDependentResources()
 {
-    // Initialize raytracing pipeline.
-
     // Create raytracing interfaces: raytracing device and commandlist.
     CreateRaytracingInterfaces();
 
@@ -192,13 +190,11 @@ void D3D12RaytracingSimpleLighting::CreateRootSignatures()
 
     // Global Root Signature
     // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
-    {
-        CD3DX12_ROOT_PARAMETER rootParameters[BoundResourceSlots::BoundResourceSlotsCount];
-        rootParameters[BoundResourceSlots::TLAS].InitAsShaderResourceView(0);
-        rootParameters[BoundResourceSlots::SceneCB].InitAsConstantBufferView(0);
-        CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters, 0U, nullptr, D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED);
-        SerializeAndCreateVersionedRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
-    }
+    CD3DX12_ROOT_PARAMETER rootParameters[BoundResourceSlots::BoundResourceSlotsCount];
+    rootParameters[BoundResourceSlots::TLAS].InitAsShaderResourceView(0);
+    rootParameters[BoundResourceSlots::SceneCB].InitAsConstantBufferView(0);
+    CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters, 0U, nullptr, D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED);
+    SerializeAndCreateVersionedRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
 }
 
 // Create raytracing device and command list.
@@ -365,7 +361,7 @@ void D3D12RaytracingSimpleLighting::BuildGeometry(LoadScene::LoadedObj loaded_ob
             CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffers[i].d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
             CD3DX12_RESOURCE_BARRIER::Transition(m_materialIndexBuffers[i].d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
         };
-        commandList->ResourceBarrier(3, srvTransitions);
+        commandList->ResourceBarrier(ARRAYSIZE(srvTransitions), srvTransitions);
     }
 
     // Kick off staging buffers copy and wait for GPU to finish as the locally created temporary GPU resources will get released once we go out of scope
@@ -680,8 +676,8 @@ void D3D12RaytracingSimpleLighting::UpdateForSizeChange(UINT width, UINT height)
 // Copy the raytracing output to the backbuffer.
 void D3D12RaytracingSimpleLighting::CopyRaytracingOutputToBackbuffer()
 {
-    auto commandList= m_deviceResources->GetCommandList();
-    auto renderTarget = m_deviceResources->GetRenderTarget();
+    auto commandList    = m_deviceResources->GetCommandList();
+    auto renderTarget   = m_deviceResources->GetRenderTarget();
 
     D3D12_RESOURCE_BARRIER preCopyBarriers[2];
     preCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
@@ -693,7 +689,6 @@ void D3D12RaytracingSimpleLighting::CopyRaytracingOutputToBackbuffer()
     D3D12_RESOURCE_BARRIER postCopyBarriers[2];
     postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(renderTarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
     postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_hdrOutput.d3d_resource.resource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
     commandList->ResourceBarrier(ARRAYSIZE(postCopyBarriers), postCopyBarriers);
 }
 
